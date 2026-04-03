@@ -1,0 +1,189 @@
+name: IMMEDIATE
+description: "Execute a token swap immediately on-chain"
+
+fields:
+  chain_id:
+    type: string
+    required: true
+    description: "Target blockchain in CAIP-2 format"
+    examples: ["solana:mainnet-beta", "eip155:1", "eip155:8453"]
+
+  entry:
+    type: object
+    required: true
+    fields:
+      condition:
+        type: object
+        required: true
+        fields:
+          immediate:
+            type: boolean
+            required: true
+            fixed: true
+
+      action:
+        type: object
+        required: true
+        one_of:
+          - buy:
+              description: "Buy base token by spending quote token"
+              fields:
+                amount:
+                  type: number
+                  required: true
+                  min_exclusive: 0
+                  description: "Amount of quote token to spend"
+                quote:
+                  type: string
+                  required: true
+                  description: "Quote token contract address (what you pay with)"
+                base:
+                  type: string
+                  required: true
+                  description: "Base token contract address (what you receive)"
+
+          - sell:
+              description: "Sell base token to receive quote token"
+              fields:
+                amount:
+                  type: number
+                  min_exclusive: 0
+                  description: "Absolute amount of base token to sell"
+                percentage:
+                  type: number
+                  min: 0
+                  max: 100
+                  description: "Percentage of held position to sell (0-100)"
+                quote:
+                  type: string
+                  required: true
+                  description: "Quote token contract address (what you receive)"
+                base:
+                  type: string
+                  required: true
+                  description: "Base token contract address (what you sell)"
+              constraints:
+                - exactly_one_of: [amount, percentage]
+
+  max_slippage_percent:
+    type: number
+    min: 0
+    max: 100
+    description: "Maximum acceptable slippage percentage"
+
+  callback_url:
+    type: string
+    description: "URL for executor to notify on completion"
+
+  exit:
+    type: object
+    required: false
+    description: "Optional exit strategy (take-profit / stop-loss)"
+    fields:
+      profit_percent:
+        type: number
+        min: 0
+        description: "Take-profit threshold percentage"
+      loss_percent:
+        type: number
+        min: 0
+        description: "Stop-loss threshold percentage"
+      logic:
+        type: string
+        enum: [OR, AND]
+        default: OR
+        description: "How to combine exit conditions"
+
+xml_shorthands:
+  - match: "<amount>all</amount>"
+    expands_to: "<relative><percentage>100.0</percentage></relative>"
+    description: "Sell entire position"
+
+template: |
+  <intent>
+    <type>IMMEDIATE</type>
+    <chain_id>{{chain_id}}</chain_id>
+    <entry>
+      <condition><immediate>true</immediate></condition>
+      <action>
+        <buy>
+          <amount>{{amount}}</amount>
+          <quote>{{quote_token_address}}</quote>
+          <base>{{base_token_address}}</base>
+        </buy>
+      </action>
+    </entry>
+  </intent>
+
+template_variants:
+  buy:
+    description: "Buy tokens by spending a quote token"
+    xml: |
+      <intent>
+        <type>IMMEDIATE</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition><immediate>true</immediate></condition>
+          <action>
+            <buy>
+              <amount>{{amount}}</amount>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </buy>
+          </action>
+        </entry>
+      </intent>
+
+  sell_absolute:
+    description: "Sell a specific amount of tokens"
+    xml: |
+      <intent>
+        <type>IMMEDIATE</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition><immediate>true</immediate></condition>
+          <action>
+            <sell>
+              <amount>{{amount}}</amount>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </sell>
+          </action>
+        </entry>
+      </intent>
+
+  sell_percentage:
+    description: "Sell a percentage of held position"
+    xml: |
+      <intent>
+        <type>IMMEDIATE</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition><immediate>true</immediate></condition>
+          <action>
+            <sell>
+              <relative><percentage>{{percentage}}</percentage></relative>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </sell>
+          </action>
+        </entry>
+      </intent>
+
+  sell_all:
+    description: "Sell entire position"
+    xml: |
+      <intent>
+        <type>IMMEDIATE</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition><immediate>true</immediate></condition>
+          <action>
+            <sell>
+              <amount>all</amount>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </sell>
+          </action>
+        </entry>
+      </intent>

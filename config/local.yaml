@@ -1,0 +1,28 @@
+server:
+  port: 8080
+  host: "127.0.0.1"
+
+intent_schemas: "intents/"
+
+dispatchers:
+  - match:
+      intent_type: IMMEDIATE
+      chain_id: "solana:*"
+    endpoint: "http://localhost:3001/execute"
+    timeout_secs: 30
+
+  - match:
+      intent_type: IMMEDIATE
+      chain_id: "eip155:*"
+    endpoint: "http://localhost:3002/execute"
+    timeout_secs: 30
+
+  - match:
+      intent_type: CONDITIONAL_ENTRY
+    endpoint: "http://localhost:3003/rules/create"
+    timeout_secs: 10
+
+  - match:
+      intent_type: LIMIT_ORDER
+    endpoint: "http://localhost:3004/orders"
+    timeout_secs: 10

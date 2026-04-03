@@ -1,0 +1,186 @@
+name: CONDITIONAL_ENTRY
+description: "Register a rule that triggers a trade when an event occurs"
+
+fields:
+  chain_id:
+    type: string
+    required: true
+    description: "Target blockchain in CAIP-2 format"
+
+  entry:
+    type: object
+    required: true
+    fields:
+      condition:
+        type: object
+        required: true
+        fields:
+          event_trigger:
+            type: object
+            required: true
+            fields:
+              event_type:
+                type: string
+                required: true
+                description: "Event type used for matching"
+                examples: ["news_signal", "token_listing"]
+              exchange:
+                type: string
+                description: "Exchange or venue"
+                examples: ["PUMPFUN"]
+              sub_event_type:
+                type: string
+                description: "Sub-type for finer matching"
+              source:
+                type: string
+                description: "Event source identifier"
+              platform:
+                type: string
+                description: "Social platform"
+                examples: ["x", "telegram"]
+              author_handle:
+                type: string
+                description: "Author handle to monitor"
+              criteria:
+                type: string
+                description: "Natural-language evaluator prompt for the rule engine"
+
+      action:
+        type: object
+        required: true
+        one_of:
+          - buy:
+              description: "Buy base token when event triggers"
+              fields:
+                amount:
+                  type: number
+                  min_exclusive: 0
+                  description: "Budget per event trigger"
+                quote:
+                  type: string
+                  required: true
+                  description: "Quote token address"
+                base:
+                  type: string
+                  required: true
+                  description: "Base token address (or placeholder for event-derived)"
+
+          - sell:
+              description: "Sell base token when event triggers"
+              fields:
+                amount:
+                  type: number
+                  min_exclusive: 0
+                  description: "Absolute amount of base token to sell"
+                percentage:
+                  type: number
+                  min: 0
+                  max: 100
+                  description: "Percentage of held position to sell (0-100)"
+                quote:
+                  type: string
+                  required: true
+                  description: "Quote token contract address (what you receive)"
+                base:
+                  type: string
+                  required: true
+                  description: "Base token contract address (what you sell)"
+              constraints:
+                - exactly_one_of: [amount, percentage]
+
+  callback_url:
+    type: string
+    description: "URL for executor to notify on completion"
+
+  exit:
+    type: object
+    required: false
+    fields:
+      profit_percent:
+        type: number
+        min: 0
+      loss_percent:
+        type: number
+        min: 0
+      logic:
+        type: string
+        enum: [OR, AND]
+        default: OR
+
+template: |
+  <intent>
+    <type>CONDITIONAL_ENTRY</type>
+    <chain_id>{{chain_id}}</chain_id>
+    <entry>
+      <condition>
+        <event_trigger>
+          <event_type>{{event_type}}</event_type>
+          <platform>{{platform}}</platform>
+          <author_handle>{{author_handle}}</author_handle>
+        </event_trigger>
+      </condition>
+      <action>
+        <buy>
+          <amount>{{amount}}</amount>
+          <quote>{{quote_token_address}}</quote>
+          <base>{{base_token_address}}</base>
+        </buy>
+      </action>
+    </entry>
+    <exit>
+      <conditions>
+        <profit_percent>{{take_profit}}</profit_percent>
+        <loss_percent>{{stop_loss}}</loss_percent>
+      </conditions>
+      <logic>OR</logic>
+    </exit>
+  </intent>
+
+template_variants:
+  with_criteria:
+    description: "Rule with natural-language criteria for the evaluator"
+    xml: |
+      <intent>
+        <type>CONDITIONAL_ENTRY</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition>
+            <event_trigger>
+              <event_type>{{event_type}}</event_type>
+              <platform>{{platform}}</platform>
+              <author_handle>{{author_handle}}</author_handle>
+              <criteria>{{criteria}}</criteria>
+            </event_trigger>
+          </condition>
+          <action>
+            <buy>
+              <amount>{{amount}}</amount>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </buy>
+          </action>
+        </entry>
+      </intent>
+
+  sell_on_event:
+    description: "Sell tokens when an event triggers"
+    xml: |
+      <intent>
+        <type>CONDITIONAL_ENTRY</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition>
+            <event_trigger>
+              <event_type>{{event_type}}</event_type>
+              <criteria>{{criteria}}</criteria>
+            </event_trigger>
+          </condition>
+          <action>
+            <sell>
+              <amount>{{amount}}</amount>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </sell>
+          </action>
+        </entry>
+      </intent>

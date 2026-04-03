@@ -1,0 +1,195 @@
+name: LIMIT_ORDER
+description: "Place a limit order that executes when price reaches a target"
+
+fields:
+  chain_id:
+    type: string
+    required: true
+    description: "Target blockchain in CAIP-2 format"
+    examples: ["solana:mainnet-beta", "eip155:1", "eip155:8453"]
+
+  entry:
+    type: object
+    required: true
+    fields:
+      condition:
+        type: object
+        required: true
+        fields:
+          limit_price:
+            type: number
+            required: true
+            min_exclusive: 0
+            description: "Target price to trigger execution"
+          price_direction:
+            type: string
+            required: true
+            enum: [above, below]
+            description: "Trigger when price goes above or below limit_price"
+
+      action:
+        type: object
+        required: true
+        one_of:
+          - buy:
+              description: "Buy base token by spending quote token"
+              fields:
+                amount:
+                  type: number
+                  required: true
+                  min_exclusive: 0
+                  description: "Amount of quote token to spend"
+                quote:
+                  type: string
+                  required: true
+                  description: "Quote token contract address (what you pay with)"
+                base:
+                  type: string
+                  required: true
+                  description: "Base token contract address (what you receive)"
+
+          - sell:
+              description: "Sell base token to receive quote token"
+              fields:
+                amount:
+                  type: number
+                  min_exclusive: 0
+                  description: "Absolute amount of base token to sell"
+                percentage:
+                  type: number
+                  min: 0
+                  max: 100
+                  description: "Percentage of held position to sell (0-100)"
+                quote:
+                  type: string
+                  required: true
+                  description: "Quote token contract address (what you receive)"
+                base:
+                  type: string
+                  required: true
+                  description: "Base token contract address (what you sell)"
+              constraints:
+                - exactly_one_of: [amount, percentage]
+
+  time_in_force:
+    type: string
+    enum: [GTC, FOK, IOC]
+    description: "Order lifetime: GTC=good-til-cancelled, FOK=fill-or-kill, IOC=immediate-or-cancel"
+
+  max_slippage_percent:
+    type: number
+    min: 0
+    max: 100
+    description: "Maximum acceptable slippage percentage"
+
+  callback_url:
+    type: string
+    description: "URL for executor to notify when order fills"
+
+  exit:
+    type: object
+    required: false
+    description: "Optional exit strategy (take-profit / stop-loss)"
+    fields:
+      profit_percent:
+        type: number
+        min: 0
+        description: "Take-profit threshold percentage"
+      loss_percent:
+        type: number
+        min: 0
+        description: "Stop-loss threshold percentage"
+      logic:
+        type: string
+        enum: [OR, AND]
+        default: OR
+        description: "How to combine exit conditions"
+
+template: |
+  <intent>
+    <type>LIMIT_ORDER</type>
+    <chain_id>{{chain_id}}</chain_id>
+    <entry>
+      <condition>
+        <limit_price>{{limit_price}}</limit_price>
+        <price_direction>{{price_direction}}</price_direction>
+      </condition>
+      <action>
+        <buy>
+          <amount>{{amount}}</amount>
+          <quote>{{quote_token_address}}</quote>
+          <base>{{base_token_address}}</base>
+        </buy>
+      </action>
+    </entry>
+    <time_in_force>GTC</time_in_force>
+  </intent>
+
+template_variants:
+  buy_below:
+    description: "Buy when price drops to target"
+    xml: |
+      <intent>
+        <type>LIMIT_ORDER</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition>
+            <limit_price>{{limit_price}}</limit_price>
+            <price_direction>below</price_direction>
+          </condition>
+          <action>
+            <buy>
+              <amount>{{amount}}</amount>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </buy>
+          </action>
+        </entry>
+        <time_in_force>GTC</time_in_force>
+        <max_slippage_percent>{{max_slippage_percent}}</max_slippage_percent>
+      </intent>
+
+  sell_above:
+    description: "Sell when price rises to target"
+    xml: |
+      <intent>
+        <type>LIMIT_ORDER</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition>
+            <limit_price>{{limit_price}}</limit_price>
+            <price_direction>above</price_direction>
+          </condition>
+          <action>
+            <sell>
+              <amount>{{amount}}</amount>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </sell>
+          </action>
+        </entry>
+        <time_in_force>GTC</time_in_force>
+      </intent>
+
+  sell_above_with_callback:
+    description: "Sell when price rises to target, with callback notification"
+    xml: |
+      <intent>
+        <type>LIMIT_ORDER</type>
+        <chain_id>{{chain_id}}</chain_id>
+        <entry>
+          <condition>
+            <limit_price>{{limit_price}}</limit_price>
+            <price_direction>above</price_direction>
+          </condition>
+          <action>
+            <sell>
+              <amount>{{amount}}</amount>
+              <quote>{{quote_token_address}}</quote>
+              <base>{{base_token_address}}</base>
+            </sell>
+          </action>
+        </entry>
+        <time_in_force>GTC</time_in_force>
+        <callback_url>{{callback_url}}</callback_url>
+      </intent>
