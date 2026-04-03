@@ -70,7 +70,7 @@ The long-term objective is not a thin brokerage interface. It is an action-descr
 5. Low-level execution policy selection. The system chooses concrete execution methods such as TWAP, VWAP, smart routing, AMM-aware splitting, or low-latency microstructure-informed enhancement.
 6. Execution compilation and deployment. The selected strategy is lowered into venue-specific orders, transactions, or MCP workflows and run on an agent platform.
 
-The trade intent schema is the stable interface across these stages. The accompanying GitHub repository, `galpha-ai/intent-kit` (`https://github.com/galpha-ai/intent-kit`), should be read as the current reference implementation of the contract layer in this architecture: schema definition, template generation, parsing, validation, and dispatch. That stability also makes incremental open development possible: parsers, schemas, validators, simulators, adapters, and agents can evolve independently while remaining compatible through the shared representation.
+The trade intent schema is the stable interface across these stages. The accompanying GitHub repository, `galpha-ai/trading-intent` (`https://github.com/galpha-ai/trading-intent`), should be read as the current reference implementation of the contract layer in this architecture: schema definition, template generation, parsing, validation, and dispatch. That stability also makes incremental open development possible: parsers, schemas, validators, simulators, adapters, and agents can evolve independently while remaining compatible through the shared representation.
 
 ## 6. Design Principles for a Practical Trade Intent DSL
 

@@ -76,7 +76,7 @@ Trade intent model 至少在四个维度产生价值。
 5. Low-level execution policy selection。系统选择具体执行方式，例如 TWAP、VWAP、smart routing、AMM-aware splitting 或 low-latency microstructure-informed enhancement。
 6. Execution compilation and deployment。系统把选中的策略 lowering 成 venue-specific order、transaction 或 MCP workflow，并部署到 agent platform。
 
-Trade intent schema 正是贯穿这些阶段的稳定接口。配套的 GitHub 仓库 `galpha-ai/intent-kit`（`https://github.com/galpha-ai/intent-kit`）应被理解为这一架构中 contract layer 的当前参考实现：schema definition、template generation、parsing、validation 与 dispatch。也正因为如此，它天然适合增量式的开放开发：parser、schema、validator、simulator、adapter 与 agent 可以独立演化，但仍通过共享表示保持兼容。
+Trade intent schema 正是贯穿这些阶段的稳定接口。配套的 GitHub 仓库 `galpha-ai/trading-intent`（`https://github.com/galpha-ai/trading-intent`）应被理解为这一架构中 contract layer 的当前参考实现：schema definition、template generation、parsing、validation 与 dispatch。也正因为如此，它天然适合增量式的开放开发：parser、schema、validator、simulator、adapter 与 agent 可以独立演化，但仍通过共享表示保持兼容。
 
 ## 6. 一个实用的 Trade Intent DSL 应具备什么原则？
 

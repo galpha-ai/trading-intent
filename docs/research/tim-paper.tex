@@ -35,8 +35,14 @@
 \maketitle
 \small
 
+\begin{center}
+\fbox{\parbox{0.92\linewidth}{
+\textbf{White Paper for the public repository:} \href{https://github.com/galpha-ai/trading-intent}{github.com/galpha-ai/trading-intent}. This note is the architectural white paper for that repository and explains the semantic contract layer it implements today, together with the execution hierarchy it motivates as future work.
+}}
+\end{center}
+
 \begin{abstract}
-Trading systems remain fragmented by asset class, venue, execution model, and technical stack. A single economic idea may need to be implemented across broker APIs, centralized exchanges, decentralized protocols, options venues, prediction markets, and on-chain transaction flows, each with its own syntax and operational assumptions. This paper argues that trade intent should be treated as a first-class semantic layer for trading systems. A trade intent model is a domain-specific language that compiles ambiguous human requests into a precise, machine-verifiable, execution-agnostic representation of desired economic action. Like semantic parsing in search or CVXPY in optimization, it separates what the user wants from how the system executes it. The central claim is that a well-designed trade intent model creates value through semantic precision, cross-venue interoperability, strategy composability, and agentic automation, while also serving as the representation layer for an action-oriented workflow in which a user provides only an idea and the platform compiles, validates, and deploys a candidate strategy.
+Trading systems remain fragmented by asset class, venue, execution model, and technical stack. A single economic idea may need to be implemented across broker APIs, centralized exchanges, decentralized protocols, options venues, prediction markets, and on-chain transaction flows, each with its own syntax and operational assumptions. This paper argues that trade intent should be treated as a first-class semantic layer for trading systems. A trade intent model is a domain-specific language that compiles ambiguous human requests into a precise, machine-verifiable, execution-agnostic representation of desired economic action. Like semantic parsing in search or CVXPY in optimization, it separates what the user wants from how the system executes it. The central claim is that a well-designed trade intent model creates value through semantic precision, cross-venue interoperability, strategy composability, and agentic automation.
 \end{abstract}
 
 \section{Introduction}
@@ -101,7 +107,7 @@ The long-term objective is not a thin brokerage interface. It is an action-descr
 
 At a system level, the pipeline is: (1) idea ingestion; (2) semantic parsing into high-level trade intent; (3) strategy synthesis and task decomposition; (4) validation and policy checks; (5) low-level execution policy selection; and (6) execution compilation and deployment.
 
-The trade intent schema is the stable interface across these stages. The accompanying GitHub repository, \texttt{galpha-ai/intent-kit} (\href{https://github.com/galpha-ai/intent-kit}{github.com/galpha-ai/intent-kit}), should be read as the current reference implementation of the contract layer in this architecture: schema definition, template generation, parsing, validation, and dispatch. That stability also allows parsers, schemas, validators, simulators, adapters, and agents to evolve independently while remaining compatible through the shared representation.
+The trade intent schema is the stable interface across these stages. The accompanying GitHub repository, \texttt{galpha-ai/trading-intent} (\href{https://github.com/galpha-ai/trading-intent}{github.com/galpha-ai/trading-intent}), should be read as the current reference implementation of the contract layer in this architecture: schema definition, template generation, parsing, validation, and dispatch. That stability also allows parsers, schemas, validators, simulators, adapters, and agents to evolve independently while remaining compatible through the shared representation.
 
 For clarity, the present repository implements only part of the full stack proposed in this paper. It covers the semantic gateway layer: intent schemas, agent-facing templates, parsing, validation, and dispatch. High-level portfolio planning, strategy synthesis, execution-policy search, and low-level algorithmic execution are future layers built on top of that interface.
 
