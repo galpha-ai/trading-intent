@@ -36,15 +36,22 @@ pub struct MatchRule {
     pub chain_id: Option<String>,
 }
 
-fn default_port() -> u16 { 8080 }
-fn default_host() -> String { "127.0.0.1".into() }
-fn default_timeout() -> u64 { 30 }
-fn default_schema_dir() -> String { "intents/".into() }
+fn default_port() -> u16 {
+    8080
+}
+fn default_host() -> String {
+    "127.0.0.1".into()
+}
+fn default_timeout() -> u64 {
+    30
+}
+fn default_schema_dir() -> String {
+    "intents/".into()
+}
 
 impl Config {
     pub fn load() -> anyhow::Result<Self> {
-        let path = std::env::var("TIM_CONFIG_PATH")
-            .unwrap_or_else(|_| "config/local.yaml".into());
+        let path = std::env::var("TIM_CONFIG_PATH").unwrap_or_else(|_| "config/local.yaml".into());
         Self::from_file(&path)
     }
 

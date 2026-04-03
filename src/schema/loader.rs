@@ -56,8 +56,9 @@ impl SchemaRegistry {
         let dir = dir.as_ref();
         let mut schemas = HashMap::new();
 
-        let entries = std::fs::read_dir(dir)
-            .with_context(|| format!("Failed to read intent schema directory: {}", dir.display()))?;
+        let entries = std::fs::read_dir(dir).with_context(|| {
+            format!("Failed to read intent schema directory: {}", dir.display())
+        })?;
 
         for entry in entries {
             let entry = entry?;

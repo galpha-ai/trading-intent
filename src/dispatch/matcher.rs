@@ -63,20 +63,39 @@ mod tests {
             dispatcher(Some("IMMEDIATE"), Some("solana:*"), "http://sol"),
             dispatcher(Some("IMMEDIATE"), Some("eip155:*"), "http://evm"),
         ];
-        assert_eq!(find_match(&intent("IMMEDIATE", "solana:mainnet-beta"), &ds).unwrap().endpoint, "http://sol");
-        assert_eq!(find_match(&intent("IMMEDIATE", "eip155:1"), &ds).unwrap().endpoint, "http://evm");
+        assert_eq!(
+            find_match(&intent("IMMEDIATE", "solana:mainnet-beta"), &ds)
+                .unwrap()
+                .endpoint,
+            "http://sol"
+        );
+        assert_eq!(
+            find_match(&intent("IMMEDIATE", "eip155:1"), &ds)
+                .unwrap()
+                .endpoint,
+            "http://evm"
+        );
     }
 
     #[test]
     fn no_match() {
-        let ds = vec![dispatcher(Some("IMMEDIATE"), Some("solana:*"), "http://sol")];
+        let ds = vec![dispatcher(
+            Some("IMMEDIATE"),
+            Some("solana:*"),
+            "http://sol",
+        )];
         assert!(find_match(&intent("CONDITIONAL_ENTRY", "solana:mainnet-beta"), &ds).is_none());
     }
 
     #[test]
     fn wildcard_fallback() {
         let ds = vec![dispatcher(None, None, "http://fallback")];
-        assert_eq!(find_match(&intent("ANYTHING", "any:chain"), &ds).unwrap().endpoint, "http://fallback");
+        assert_eq!(
+            find_match(&intent("ANYTHING", "any:chain"), &ds)
+                .unwrap()
+                .endpoint,
+            "http://fallback"
+        );
     }
 
     #[test]
@@ -85,7 +104,12 @@ mod tests {
             dispatcher(Some("IMMEDIATE"), Some("solana:*"), "http://first"),
             dispatcher(Some("IMMEDIATE"), None, "http://second"),
         ];
-        assert_eq!(find_match(&intent("IMMEDIATE", "solana:devnet"), &ds).unwrap().endpoint, "http://first");
+        assert_eq!(
+            find_match(&intent("IMMEDIATE", "solana:devnet"), &ds)
+                .unwrap()
+                .endpoint,
+            "http://first"
+        );
     }
 
     #[test]
@@ -97,7 +121,11 @@ mod tests {
 
     #[test]
     fn complex_glob_chain_id() {
-        let ds = vec![dispatcher(Some("IMMEDIATE"), Some("eip155:*"), "http://evm")];
+        let ds = vec![dispatcher(
+            Some("IMMEDIATE"),
+            Some("eip155:*"),
+            "http://evm",
+        )];
         assert!(find_match(&intent("IMMEDIATE", "eip155:8453"), &ds).is_some());
         assert!(find_match(&intent("IMMEDIATE", "eip155:1"), &ds).is_some());
         assert!(find_match(&intent("IMMEDIATE", "solana:mainnet-beta"), &ds).is_none());

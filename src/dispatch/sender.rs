@@ -51,12 +51,13 @@ pub async fn send(
         return Err(DispatchError::ExecutorError { status, body });
     }
 
-    let body: serde_json::Value = resp.json().await.map_err(|e| {
-        DispatchError::ExecutorError {
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| DispatchError::ExecutorError {
             status,
-            body: format!("Bad executor response: {}", e),
-        }
-    })?;
+            body: format!("Bad executor response: {e}"),
+        })?;
 
     Ok(DispatchResponse {
         executor_response: body,

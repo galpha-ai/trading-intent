@@ -24,8 +24,7 @@ const MAX_XML_DEPTH: usize = 64;
 pub fn parse_xml(xml: &str, shorthands: &[XmlShorthand]) -> Result<Value> {
     if xml.len() > MAX_XML_SIZE {
         return Err(anyhow!(
-            "XML payload exceeds maximum size of {} bytes",
-            MAX_XML_SIZE
+            "XML payload exceeds maximum size of {MAX_XML_SIZE} bytes"
         ));
     }
 
@@ -48,7 +47,7 @@ pub fn parse_xml(xml: &str, shorthands: &[XmlShorthand]) -> Result<Value> {
                 }
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(anyhow!("XML parsing error: {}", e)),
+            Err(e) => return Err(anyhow!("XML parsing error: {e}")),
             _ => {}
         }
     }
@@ -63,11 +62,14 @@ pub fn parse_xml(xml: &str, shorthands: &[XmlShorthand]) -> Result<Value> {
 /// - Text-only content becomes a JSON string or number
 /// - Nested elements recurse
 /// - Duplicate keys at the same level are collected into arrays
-fn parse_element_children(reader: &mut Reader<&[u8]>, parent_name: &str, depth: usize) -> Result<Value> {
+fn parse_element_children(
+    reader: &mut Reader<&[u8]>,
+    parent_name: &str,
+    depth: usize,
+) -> Result<Value> {
     if depth > MAX_XML_DEPTH {
         return Err(anyhow!(
-            "XML nesting exceeds maximum depth of {}",
-            MAX_XML_DEPTH
+            "XML nesting exceeds maximum depth of {MAX_XML_DEPTH}"
         ));
     }
 
@@ -113,7 +115,7 @@ fn parse_element_children(reader: &mut Reader<&[u8]>, parent_name: &str, depth: 
                 obj.insert(name, json!(true));
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(anyhow!("XML parsing error: {}", e)),
+            Err(e) => return Err(anyhow!("XML parsing error: {e}")),
             _ => {}
         }
     }
@@ -125,8 +127,7 @@ fn parse_element_children(reader: &mut Reader<&[u8]>, parent_name: &str, depth: 
 fn parse_child(reader: &mut Reader<&[u8]>, element_name: &str, depth: usize) -> Result<Value> {
     if depth > MAX_XML_DEPTH {
         return Err(anyhow!(
-            "XML nesting exceeds maximum depth of {}",
-            MAX_XML_DEPTH
+            "XML nesting exceeds maximum depth of {MAX_XML_DEPTH}"
         ));
     }
 
@@ -171,7 +172,7 @@ fn parse_child(reader: &mut Reader<&[u8]>, element_name: &str, depth: usize) -> 
                 }
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(anyhow!("XML parsing error: {}", e)),
+            Err(e) => return Err(anyhow!("XML parsing error: {e}")),
             _ => {}
         }
     }
@@ -256,7 +257,10 @@ mod tests {
         </intent>"#;
 
         let result = parse_xml(xml, &[]).unwrap();
-        assert_eq!(result["entry"]["action"]["sell"]["relative"]["percentage"], 50.0);
+        assert_eq!(
+            result["entry"]["action"]["sell"]["relative"]["percentage"],
+            50.0
+        );
     }
 
     #[test]
@@ -284,7 +288,10 @@ mod tests {
         </intent>"#;
 
         let result = parse_xml(xml, &shorthands).unwrap();
-        assert_eq!(result["entry"]["action"]["sell"]["relative"]["percentage"], 100.0);
+        assert_eq!(
+            result["entry"]["action"]["sell"]["relative"]["percentage"],
+            100.0
+        );
     }
 
     #[test]
@@ -326,7 +333,7 @@ mod tests {
     fn xml_size_limit_exceeded() {
         // Create XML larger than 1MB
         let payload = "x".repeat(MAX_XML_SIZE + 1);
-        let xml = format!("<intent><type>TEST</type><data>{}</data></intent>", payload);
+        let xml = format!("<intent><type>TEST</type><data>{payload}</data></intent>");
         let err = parse_xml(&xml, &[]).unwrap_err();
         assert!(err.to_string().contains("maximum size"));
     }
@@ -337,11 +344,11 @@ mod tests {
         let mut xml = String::new();
         xml.push_str("<intent>");
         for i in 0..MAX_XML_DEPTH + 2 {
-            xml.push_str(&format!("<e{}>", i));
+            xml.push_str(&format!("<e{i}>"));
         }
         xml.push_str("value");
         for i in (0..MAX_XML_DEPTH + 2).rev() {
-            xml.push_str(&format!("</e{}>", i));
+            xml.push_str(&format!("</e{i}>"));
         }
         xml.push_str("</intent>");
         let err = parse_xml(&xml, &[]).unwrap_err();
