@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import textwrap
 from pathlib import Path
 
@@ -9,21 +10,24 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
+    Image,
     PageBreak,
     PageTemplate,
     Paragraph,
     Preformatted,
-    Spacer,
-    Table,
-    TableStyle,
 )
 
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).with_name("tim-paper.md")
+FIGURE_TEX = SOURCE.parent / "figures" / "pipeline-figure.tex"
+FIGURE_BUILD_DIR = SOURCE.parent / "figures" / "build"
+FIGURE_PDF = FIGURE_BUILD_DIR / "pipeline-figure.pdf"
+FIGURE_PNG = FIGURE_BUILD_DIR / "pipeline-figure.png"
 OUTPUT_DIR = ROOT / "output" / "pdf"
 OUTPUT_PDF = OUTPUT_DIR / "tim-paper.pdf"
 PAPER_TITLE = "Trade Intent Models: A Semantic Interface for Cross-Market Trading and Agentic Strategy Execution"
@@ -198,67 +202,46 @@ def parse_sections(markdown: str):
     return blocks
 
 
+def ensure_pipeline_figure() -> Path:
+    FIGURE_BUILD_DIR.mkdir(parents=True, exist_ok=True)
+
+    needs_render = (
+        not FIGURE_PNG.exists()
+        or FIGURE_PNG.stat().st_mtime < FIGURE_TEX.stat().st_mtime
+    )
+    if not needs_render:
+        return FIGURE_PNG
+
+    subprocess.run(
+        [
+            "tectonic",
+            "--outdir",
+            str(FIGURE_BUILD_DIR),
+            str(FIGURE_TEX),
+        ],
+        check=True,
+        cwd=FIGURE_TEX.parent,
+    )
+    subprocess.run(
+        [
+            "pdftoppm",
+            "-singlefile",
+            "-png",
+            str(FIGURE_PDF),
+            str(FIGURE_PNG.with_suffix("")),
+        ],
+        check=True,
+    )
+    return FIGURE_PNG
+
+
 def compiler_pipeline_figure():
-    rows = [
-        [
-            "Natural Language",
-            "->",
-            "High-Level Trade Intent",
-            "->",
-            "Execution Task Graph",
-            "->",
-            "Venue Instructions",
-        ],
-        [
-            "Ambiguous human request",
-            "",
-            "Unambiguous, typed, cross-venue IR",
-            "",
-            "TWAP, VWAP, AMM splits, routing",
-            "",
-            "Adapter output",
-        ],
-    ]
-    table = Table(
-        rows,
-        colWidths=[1.18 * inch, 0.2 * inch, 1.9 * inch, 0.2 * inch, 1.9 * inch, 0.2 * inch, 1.42 * inch],
-        hAlign="LEFT",
-    )
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (0, 1), colors.HexColor("#EAF2FF")),
-                ("BACKGROUND", (2, 0), (2, 1), colors.HexColor("#E8FFF5")),
-                ("BACKGROUND", (4, 0), (4, 1), colors.HexColor("#FFF7E8")),
-                ("BACKGROUND", (6, 0), (6, 1), colors.HexColor("#F3E8FF")),
-                ("SPAN", (0, 0), (0, 0)),
-                ("SPAN", (2, 0), (2, 0)),
-                ("SPAN", (4, 0), (4, 0)),
-                ("SPAN", (6, 0), (6, 0)),
-                ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#10233F")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTNAME", (0, 1), (-1, 1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8.2),
-                ("LEADING", (0, 0), (-1, -1), 10),
-                ("BOX", (0, 0), (0, 1), 0.6, colors.HexColor("#9FB3C8")),
-                ("BOX", (2, 0), (2, 1), 0.6, colors.HexColor("#7BC6A4")),
-                ("BOX", (4, 0), (4, 1), 0.6, colors.HexColor("#D9B06B")),
-                ("BOX", (6, 0), (6, 1), 0.6, colors.HexColor("#B89AE6")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("ALIGN", (1, 0), (1, -1), "CENTER"),
-                ("ALIGN", (3, 0), (3, -1), "CENTER"),
-                ("ALIGN", (5, 0), (5, -1), "CENTER"),
-                ("FONTNAME", (1, 0), (5, 1), "Helvetica-Bold"),
-                ("TEXTCOLOR", (1, 0), (5, 1), colors.HexColor("#52606D")),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-        )
-    )
-    return table
+    figure_path = ensure_pipeline_figure()
+    image_reader = ImageReader(str(figure_path))
+    width_px, height_px = image_reader.getSize()
+    target_width = 5.95 * inch
+    target_height = target_width * height_px / width_px
+    return Image(str(figure_path), width=target_width, height=target_height)
 
 
 def build_story():

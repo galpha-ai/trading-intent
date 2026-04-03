@@ -10,6 +10,14 @@ Trading systems remain fragmented by asset class, venue, execution model, and te
 
 The core problem is simple: human trading intent is high-level, but execution infrastructure is fragmented and low-level. Users think in terms of outcomes, exposures, hedges, and constraints. Venues expose order types, product identifiers, chain-specific transaction formats, routing rules, and incompatible APIs. Directly mapping one into the other produces brittle systems.
 
+This gap is becoming more acute because the interface to trading is changing. On the human side, more requests now arrive through chat, voice, and what might be called vibe trading: compressed instructions such as `get me upside into the close`, `hedge this if the market turns`, or `buy the best expression of this thesis across venues`. These are natural forms of human communication, but they are not safe execution formats. They are rich in intent and poor in specification.
+
+On the machine side, a growing number of users are connecting general-purpose or non-specialist agents to wallets, broker APIs, and DeFi protocols. These agents can read natural language, call tools, and execute multi-step financial actions, but they often lack a stable semantic layer that separates user meaning from irreversible financial execution. In practice, unstructured prompts become direct action surfaces.
+
+Recent incidents show why this matters. In February 2026, Lobstar Wilde, an autonomous crypto agent built on OpenClaw, misinterpreted a small-transfer request and sent about 52.4 million LOBSTAR tokens to a stranger. In March 2026, the National Internet Finance Association of China warned that OpenClaw-style financial deployments could expose sensitive credentials and trigger erroneous transfers or unintended purchases.
+
+These examples point to a common systems problem: the missing layer is often not prediction or contract logic, but the absence of a rigorous intermediate representation between ambiguous language and high-privilege action.
+
 This mismatch creates three failures. Natural language is expressive but ambiguous. Execution interfaces are precise but siloed. Automation without a stable intermediate representation is hard to audit and hard to debug. When something goes wrong, it is often unclear whether the system misunderstood the user’s goal, constructed the wrong strategy, or translated the strategy incorrectly into venue-native instructions.
 
 The proposed compilation pipeline is:
@@ -43,13 +51,13 @@ Without an intermediate representation, these benefits collapse into black-box a
 
 ## 4. Hierarchical Execution
 
-Execution itself should be layered. The right analogy is robotics: high-level planning is distinct from low-level motor execution. Trading systems should make the same distinction between high-level trade intent and low-level execution tasks or execution policies.
+Execution itself should be layered. The right analogy is robotics: high-level planning is distinct from low-level motor execution. Trading systems should make the same distinction between high-level trade intent and low-level execution tasks or execution policies. In the context of this paper, that layered execution stack should be read as an extension of the current repository rather than as a claim about what the present codebase already implements.
 
 High-level trade intent is the planning layer. It captures the economically meaningful objective in a way that can be derived from natural language without leaving economically relevant ambiguity. It is also the right surface for cross-venue reasoning, liquidity aggregation, and policy-aware routing. A request such as `buy 100,000 shares of AAPL before the close` or `buy $1 million of NVDA call options this week` should first be represented as a portfolio-level object with explicit notional, time horizon, impact tolerance, urgency, and venue constraints. Only then should it be decomposed into lower-level execution tasks.
 
 Those lower-level tasks belong to an execution layer. A single high-level portfolio trade may expand into many child orders, each governed by a different execution policy. Depending on market structure, those tasks may be realized through deterministic execution algorithms such as TWAP and VWAP, through broker-native smart routing, through on-chain naive slicing, through AMM or aggregator-based execution, or through richer low-latency strategies that incorporate market-structure or macro-sensitive execution signals. These are not different user intents. They are different compilations of the same intent into market-specific execution orders.
 
-This separation also creates a principled place for microstructure-level improvement. The same intent can be executed better by blending in low-latency tactics, order-book-aware placement, queue-sensitive routing, microstructure alpha, or on-chain route-selection and timing improvements. The semantic layer is responsible for economic correctness; the execution layer is responsible for realized execution quality. The user specifies the portfolio objective once at the natural-language level, and the system remains free to search over better low-level implementations without changing that original intent.
+This separation also creates a principled place for microstructure-level improvement. The same intent can be executed better by blending in low-latency tactics, order-book-aware placement, queue-sensitive routing, microstructure alpha, or on-chain route-selection and timing improvements. The semantic layer is responsible for economic correctness; the execution layer is responsible for realized execution quality. The user specifies the portfolio objective once at the natural-language level, and the system remains free to search over better low-level implementations without changing that original intent. The current GitHub repository does not yet include this planning-and-execution hierarchy; it motivates it.
 
 ## 5. A System View: From Idea to Agentic Execution
 
@@ -62,7 +70,7 @@ The long-term objective is not a thin brokerage interface. It is an action-descr
 5. Low-level execution policy selection. The system chooses concrete execution methods such as TWAP, VWAP, smart routing, AMM-aware splitting, or low-latency microstructure-informed enhancement.
 6. Execution compilation and deployment. The selected strategy is lowered into venue-specific orders, transactions, or MCP workflows and run on an agent platform.
 
-The trade intent schema is the stable interface across these stages. That stability also makes incremental open development possible: parsers, schemas, validators, simulators, adapters, and agents can evolve independently while remaining compatible through the shared representation.
+The trade intent schema is the stable interface across these stages. The accompanying GitHub repository, `galpha-ai/intent-kit`, should be read as the current reference implementation of the contract layer in this architecture: schema definition, template generation, parsing, validation, and dispatch. That stability also makes incremental open development possible: parsers, schemas, validators, simulators, adapters, and agents can evolve independently while remaining compatible through the shared representation.
 
 ## 6. Design Principles for a Practical Trade Intent DSL
 
@@ -75,6 +83,8 @@ A practical trade intent language should satisfy five requirements.
 5. Extensibility. New instruments, venues, chains, and action types should be incorporable without redesigning the entire representation.
 
 A wrapper translates syntax. A real trade intent model organizes semantics.
+
+For clarity, the present repository implements only part of the full stack proposed in this paper. It currently covers the semantic gateway layer: intent schemas, agent-facing templates, parsing, validation, and dispatch. High-level portfolio planning, strategy synthesis, execution-policy search, and low-level algorithmic execution are future layers that can be built on top of that interface.
 
 ## 7. Open Problems
 
