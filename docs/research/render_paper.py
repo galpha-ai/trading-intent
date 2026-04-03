@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).with_name("tim-paper.md")
 OUTPUT_DIR = ROOT / "output" / "pdf"
 OUTPUT_PDF = OUTPUT_DIR / "tim-paper.pdf"
-PAPER_TITLE = "Trade Intent Model (TIM) as a Domain-Specific Language for Precise Cross-Venue Trade Execution Planning"
+PAPER_TITLE = "Trade Intent Models: A Semantic Interface for Cross-Market Trading and Agentic Strategy Execution"
 
 
 def build_styles():

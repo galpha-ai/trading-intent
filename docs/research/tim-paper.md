@@ -1,10 +1,10 @@
-# Trade Intent Model (TIM) as a Domain-Specific Language for Precise Cross-Venue Trade Execution Planning
+# Trade Intent Models: A Semantic Interface for Cross-Market Trading and Agentic Strategy Execution
 
 Bill Sun
 
 ## Abstract
 
-Trading systems remain fragmented by asset class, venue, execution model, and technical stack. A single economic idea may need to be implemented across broker APIs, centralized exchanges, decentralized protocols, options venues, prediction markets, and on-chain transaction flows, each with its own syntax and operational assumptions. This paper argues that trade intent should be treated as a first-class semantic layer for trading systems. A trade intent model is a domain-specific language that compiles ambiguous human requests into a precise, machine-verifiable, execution-agnostic representation of desired economic action. Its role is analogous to semantic parsing in search or modeling languages such as CVXPY in optimization: the user specifies what should be achieved; the system compiles that specification into a canonical representation; downstream components translate that representation into executable instructions. The key extension developed here is hierarchical execution. High-level trade intent defines economic correctness; low-level execution policies determine realized execution quality. This separation makes cross-venue trading more debuggable, composable, and suitable for agent-driven execution.
+Trading systems remain fragmented by asset class, venue, execution model, and technical stack. A single economic idea may need to be implemented across broker APIs, centralized exchanges, decentralized protocols, options venues, prediction markets, and on-chain transaction flows, each with its own syntax and operational assumptions. This paper argues that trade intent should be treated as a first-class semantic layer for trading systems. A trade intent model is a domain-specific language that compiles ambiguous human requests into a precise, machine-verifiable, execution-agnostic representation of desired economic action. Its role is analogous to semantic parsing in search or modeling languages such as CVXPY in optimization: the user specifies what should be achieved; the system compiles that specification into a canonical representation; downstream components translate that representation into executable instructions. The central claim is that a well-designed trade intent model creates value along four dimensions: semantic precision, cross-venue interoperability, strategy composability, and agentic automation. More importantly, it serves as the representation layer for a broader action-oriented workflow in which a user provides only an idea, the system synthesizes a strong candidate strategy, and the platform deploys that strategy with one click.
 
 ## 1. Introduction
 
@@ -37,7 +37,7 @@ Trade intent models create value along four dimensions.
 1. Semantic precision and debuggability. By forcing a translation step from human expression into a canonical schema, the system can detect underspecification, contradictions, or infeasible requests before any trade is placed.
 2. Cross-venue interoperability. Spot, options, perps, prediction contracts, broker flows, and on-chain actions can be represented through one semantic interface even when the final execution backends remain heterogeneous.
 3. Strategy composability. Once a request is represented canonically, multi-leg packages, routing alternatives, cost-risk tradeoffs, and portfolio-level constraints can be reasoned about jointly.
-4. Agent workflow infrastructure. Parsers, validators, simulators, execution planners, monitors, and agents can interoperate through one shared object instead of brittle prompt glue or venue-specific adapters.
+4. Agentic automation. Parsers, validators, simulators, execution planners, monitors, and agents can interoperate through one shared object instead of brittle prompt glue or venue-specific adapters.
 
 Without an intermediate representation, these benefits collapse into black-box automation.
 
@@ -62,7 +62,7 @@ The long-term objective is not a thin brokerage interface. It is an action-descr
 5. Low-level execution policy selection. The system chooses concrete execution methods such as TWAP, VWAP, smart routing, AMM-aware splitting, or low-latency microstructure-informed enhancement.
 6. Execution compilation and deployment. The selected strategy is lowered into venue-specific orders, transactions, or MCP workflows and run on an agent platform.
 
-The trade intent schema is the stable interface across these stages.
+The trade intent schema is the stable interface across these stages. That stability also makes incremental open development possible: parsers, schemas, validators, simulators, adapters, and agents can evolve independently while remaining compatible through the shared representation.
 
 ## 6. Design Principles for a Practical Trade Intent DSL
 
