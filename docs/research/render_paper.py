@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 import textwrap
+from dataclasses import dataclass
 from pathlib import Path
 
 from reportlab.lib import colors
@@ -11,6 +12,9 @@ from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
@@ -23,79 +27,157 @@ from reportlab.platypus import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = Path(__file__).with_name("tim-paper.md")
-FIGURE_TEX = SOURCE.parent / "figures" / "pipeline-figure.tex"
-FIGURE_BUILD_DIR = SOURCE.parent / "figures" / "build"
+RESEARCH_DIR = Path(__file__).resolve().parent
+FIGURE_TEX = RESEARCH_DIR / "figures" / "pipeline-figure.tex"
+FIGURE_BUILD_DIR = RESEARCH_DIR / "figures" / "build"
 FIGURE_PDF = FIGURE_BUILD_DIR / "pipeline-figure.pdf"
 FIGURE_PNG = FIGURE_BUILD_DIR / "pipeline-figure.png"
 OUTPUT_DIR = ROOT / "output" / "pdf"
-OUTPUT_PDF = OUTPUT_DIR / "tim-paper.pdf"
-PAPER_TITLE = "Trade Intent Models: A Semantic Interface for Cross-Market Trading and Agentic Strategy Execution"
 
 
-def build_styles():
+@dataclass(frozen=True)
+class PaperSpec:
+    source: Path
+    output: Path
+    title: str
+    abstract_label: str
+    footer_label: str
+    figure_heading_prefix: str
+    figure_caption: str
+    author: str = "Bill Sun"
+    use_cjk_font: bool = False
+
+
+ENGLISH_PAPER = PaperSpec(
+    source=RESEARCH_DIR / "tim-paper.md",
+    output=OUTPUT_DIR / "tim-paper.pdf",
+    title="Trade Intent Models: A Semantic Interface for Cross-Market Trading and Agentic Strategy Execution",
+    abstract_label="Abstract",
+    footer_label="TIM Research Note",
+    figure_heading_prefix="5. A System View:",
+    figure_caption="Figure 1. TIM acts as the stable representation layer from idea ingestion to execution-policy selection and venue-native deployment.",
+)
+
+CHINESE_PAPER = PaperSpec(
+    source=RESEARCH_DIR / "tim-paper.zh.md",
+    output=OUTPUT_DIR / "tim-paper-zh.pdf",
+    title="Trade Intent Models：跨市场交易与 Agent 策略执行的语义接口",
+    abstract_label="摘要",
+    footer_label="TIM 研究笔记",
+    figure_heading_prefix="5. 系统视角：",
+    figure_caption="图 1. TIM 作为稳定表示层，连接 idea ingestion、execution-policy selection 与 venue-native deployment。",
+    use_cjk_font=True,
+)
+
+PAPERS = [ENGLISH_PAPER, CHINESE_PAPER]
+PAPER_AUTHOR = "Bill Sun and Alpha.Dev team (https://alpha.dev/)"
+
+
+def register_fonts(use_cjk_font: bool) -> dict[str, str]:
+    if not use_cjk_font:
+        return {
+            "regular": "Helvetica",
+            "bold": "Helvetica-Bold",
+            "italic": "Helvetica-Oblique",
+        }
+
+    candidates = [
+        ("SongtiSC", Path("/System/Library/Fonts/Supplemental/Songti.ttc")),
+        ("HiraginoSansGB", Path("/System/Library/Fonts/Hiragino Sans GB.ttc")),
+    ]
+    for font_name, font_path in candidates:
+        if not font_path.exists():
+            continue
+        try:
+            pdfmetrics.registerFont(TTFont(font_name, str(font_path)))
+            return {
+                "regular": font_name,
+                "bold": font_name,
+                "italic": font_name,
+            }
+        except Exception:
+            continue
+
+    fallback_name = "STSong-Light"
+    pdfmetrics.registerFont(UnicodeCIDFont(fallback_name))
+    return {
+        "regular": fallback_name,
+        "bold": fallback_name,
+        "italic": fallback_name,
+    }
+
+
+def build_styles(paper: PaperSpec):
     styles = getSampleStyleSheet()
+    fonts = register_fonts(paper.use_cjk_font)
+    word_wrap = "CJK" if paper.use_cjk_font else None
     return {
         "title": ParagraphStyle(
             "PaperTitle",
             parent=styles["Title"],
-            fontName="Helvetica-Bold",
-            fontSize=17,
-            leading=20,
+            fontName=fonts["bold"],
+            fontSize=16.2,
+            leading=18.8,
             alignment=TA_CENTER,
             textColor=colors.HexColor("#10233F"),
-            spaceAfter=8,
+            spaceAfter=7,
+            wordWrap=word_wrap,
         ),
         "author": ParagraphStyle(
             "PaperAuthor",
             parent=styles["Normal"],
-            fontName="Helvetica",
-            fontSize=10,
-            leading=12,
+            fontName=fonts["regular"],
+            fontSize=9.5,
+            leading=11.2,
             alignment=TA_CENTER,
             textColor=colors.HexColor("#425466"),
-            spaceAfter=14,
+            spaceAfter=11,
+            wordWrap=word_wrap,
         ),
         "h2": ParagraphStyle(
             "PaperHeading2",
             parent=styles["Heading2"],
-            fontName="Helvetica-Bold",
-            fontSize=11.5,
-            leading=13.2,
+            fontName=fonts["bold"],
+            fontSize=11.1,
+            leading=12.7,
             textColor=colors.HexColor("#10233F"),
-            spaceBefore=6,
-            spaceAfter=4,
+            spaceBefore=5,
+            spaceAfter=3,
+            wordWrap=word_wrap,
         ),
         "body": ParagraphStyle(
             "PaperBody",
             parent=styles["BodyText"],
-            fontName="Helvetica",
-            fontSize=9.1,
-            leading=12.2,
+            fontName=fonts["regular"],
+            fontSize=8.9,
+            leading=11.5,
             alignment=TA_JUSTIFY,
             textColor=colors.HexColor("#1F2933"),
-            spaceAfter=5,
+            spaceAfter=4,
+            wordWrap=word_wrap,
         ),
         "abstract_label": ParagraphStyle(
             "AbstractLabel",
             parent=styles["BodyText"],
-            fontName="Helvetica-Bold",
-            fontSize=9.1,
-            leading=12.2,
+            fontName=fonts["bold"],
+            fontSize=8.9,
+            leading=11.5,
             alignment=TA_LEFT,
             textColor=colors.HexColor("#10233F"),
-            spaceAfter=4,
+            spaceAfter=3,
+            wordWrap=word_wrap,
         ),
         "caption": ParagraphStyle(
             "FigureCaption",
             parent=styles["BodyText"],
-            fontName="Helvetica-Oblique",
-            fontSize=8.1,
-            leading=9.7,
+            fontName=fonts["italic"],
+            fontSize=7.8,
+            leading=9.1,
             alignment=TA_LEFT,
             textColor=colors.HexColor("#52606D"),
-            spaceBefore=5,
-            spaceAfter=6,
+            spaceBefore=4,
+            spaceAfter=5,
+            wordWrap=word_wrap,
         ),
         "code": ParagraphStyle(
             "CodeStyle",
@@ -116,27 +198,32 @@ def build_styles():
     }
 
 
-def draw_page(canvas, doc):
-    canvas.saveState()
-    canvas.setTitle(PAPER_TITLE)
-    canvas.setAuthor("Bill Sun")
-    width, height = LETTER
-    left = doc.leftMargin
-    right = width - doc.rightMargin
-    top = height - 0.62 * inch
-    bottom = 0.55 * inch
+def draw_page(paper: PaperSpec):
+    fonts = register_fonts(paper.use_cjk_font)
 
-    canvas.setStrokeColor(colors.HexColor("#D9E2EC"))
-    canvas.setLineWidth(0.6)
-    canvas.line(left, top, right, top)
-    canvas.line(left, bottom, right, bottom)
+    def _draw_page(canvas, doc):
+        canvas.saveState()
+        canvas.setTitle(paper.title)
+        canvas.setAuthor(PAPER_AUTHOR)
+        width, height = LETTER
+        left = doc.leftMargin
+        right = width - doc.rightMargin
+        top = height - 0.62 * inch
+        bottom = 0.55 * inch
 
-    canvas.setFillColor(colors.HexColor("#52606D"))
-    canvas.setFont("Helvetica", 8)
-    canvas.drawString(left, bottom - 0.18 * inch, "TIM Research Note")
-    page_label = f"Page {canvas.getPageNumber()}"
-    canvas.drawRightString(right, bottom - 0.18 * inch, page_label)
-    canvas.restoreState()
+        canvas.setStrokeColor(colors.HexColor("#D9E2EC"))
+        canvas.setLineWidth(0.6)
+        canvas.line(left, top, right, top)
+        canvas.line(left, bottom, right, bottom)
+
+        canvas.setFillColor(colors.HexColor("#52606D"))
+        canvas.setFont(fonts["regular"], 8)
+        canvas.drawString(left, bottom - 0.18 * inch, paper.footer_label)
+        page_label = f"Page {canvas.getPageNumber()}"
+        canvas.drawRightString(right, bottom - 0.18 * inch, page_label)
+        canvas.restoreState()
+
+    return _draw_page
 
 
 def paragraph_text(raw: str) -> str:
@@ -235,18 +322,18 @@ def ensure_pipeline_figure() -> Path:
     return FIGURE_PNG
 
 
-def compiler_pipeline_figure():
+def compile_pipeline_figure():
     figure_path = ensure_pipeline_figure()
     image_reader = ImageReader(str(figure_path))
     width_px, height_px = image_reader.getSize()
-    target_width = 5.95 * inch
+    target_width = 5.7 * inch
     target_height = target_width * height_px / width_px
     return Image(str(figure_path), width=target_width, height=target_height)
 
 
-def build_story():
-    styles = build_styles()
-    content = SOURCE.read_text()
+def build_story(paper: PaperSpec):
+    styles = build_styles(paper)
+    content = paper.source.read_text(encoding="utf-8")
     blocks = parse_sections(content)
     story = []
 
@@ -265,15 +352,15 @@ def build_story():
             continue
 
         if block_type == "heading":
-            if value.lower() == "abstract":
-                story.append(Paragraph("Abstract", styles["abstract_label"]))
+            if value.lower() == "abstract" or value == "摘要":
+                story.append(Paragraph(paper.abstract_label, styles["abstract_label"]))
             else:
                 story.append(Paragraph(paragraph_text(value), styles["h2"]))
-                if value.startswith("5. A System View: From Idea to Agentic Execution"):
-                    story.append(compiler_pipeline_figure())
+                if value.startswith(paper.figure_heading_prefix):
+                    story.append(compile_pipeline_figure())
                     story.append(
                         Paragraph(
-                            "Figure 1. TIM acts as the stable representation layer from idea ingestion to execution-policy selection and venue-native deployment.",
+                            paper.figure_caption,
                             styles["caption"],
                         )
                     )
@@ -301,18 +388,19 @@ def build_story():
 
     return story
 
-def main():
+def render_paper(paper: PaperSpec):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    author = PAPER_AUTHOR
 
     doc = BaseDocTemplate(
-        str(OUTPUT_PDF),
+        str(paper.output),
         pagesize=LETTER,
-        leftMargin=0.8 * inch,
-        rightMargin=0.8 * inch,
-        topMargin=0.9 * inch,
-        bottomMargin=0.78 * inch,
-        title=PAPER_TITLE,
-        author="Bill Sun",
+        leftMargin=0.72 * inch,
+        rightMargin=0.72 * inch,
+        topMargin=0.86 * inch,
+        bottomMargin=0.75 * inch,
+        title=paper.title,
+        author=author,
     )
 
     frame = Frame(
@@ -326,9 +414,14 @@ def main():
         topPadding=0,
         id="paper-frame",
     )
-    template = PageTemplate(id="paper", frames=[frame], onPage=draw_page)
+    template = PageTemplate(id=f"paper-{paper.output.stem}", frames=[frame], onPage=draw_page(paper))
     doc.addPageTemplates([template])
-    doc.build(build_story())
+    doc.build(build_story(paper))
+
+
+def main():
+    for paper in PAPERS:
+        render_paper(paper)
 
 
 if __name__ == "__main__":
