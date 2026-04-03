@@ -1,0 +1,64 @@
+\newcommand{\Dmax}{D^\mathrm{max}}
+\newcommand{\Wmin}{W^\mathrm{min}}
+% some traditional definitions that can be blamed on craig barratt
+\newcommand{\BEAS}{\begin{eqnarray*}}
+\newcommand{\EEAS}{\end{eqnarray*}}
+\newcommand{\BEQ}{\begin{equation}}
+\newcommand{\EEQ}{\end{equation}}
+\newcommand{\BIT}{\begin{itemize}}
+\newcommand{\EIT}{\end{itemize}}
+
+% text abbrevs
+\newcommand{\eg}{{\it e.g.}}
+\newcommand{\ie}{{\it i.e.}}
+\newcommand{\ones}{\mathbf 1}
+
+% std math stuff
+\newcommand{\reals}{{\mbox{\bf R}}}
+\newcommand{\symm}{{\mbox{\bf S}}}
+
+% probability stuff
+\newcommand{\Expect}{\mathbf{E}}
+\newcommand{\prob}{\mathbf{Prob}}
+\newcommand{\var}{\mathop{\bf var}}
+
+% convexity & optimization stuff
+\newcommand{\Co}{{\mathop {\bf Co}}}
+\newcommand{\co}{{\mathop {\bf Co}}}
+\newcommand{\Var}{\mathop{\bf var{}}}
+\newcommand{\dist}{\mathop{\bf dist{}}}
+\newcommand{\argmin}{\mathop{\rm argmin}}
+\newcommand{\arginf}{\mathop{\rm arginf}}
+
+\newcommand{\dom}{\mathop{\bf dom}}
+\newcommand{\argmax}{\mathop{\rm argmax}}
+
+\newtheorem{theorem}{Theorem}
+
+% alg description --- not much for now!
+\newenvironment{algdesc}%
+{\begin{quote}}{\end{quote}}
+
+% figures
+\def\figbox#1{\framebox[\hsize]{\hfil\parbox{0.9\hsize}{#1}}}
+
+% captions a la sirev
+\makeatletter
+\long\def\@makecaption#1#2{
+   \vskip 9pt
+   \begin{small}
+   \setbox\@tempboxa\hbox{{\bf #1:} #2}
+   \ifdim \wd\@tempboxa > 5.5in
+        \begin{center}
+        \begin{minipage}[t]{5.5in}
+        \addtolength{\baselineskip}{-0.95pt}
+        {\bf #1:} #2 \par
+        \addtolength{\baselineskip}{0.95pt}
+        \end{minipage}
+        \end{center}
+   \else
+        \hbox to\hsize{\hfil\box\@tempboxa\hfil}
+   \fi
+   \end{small}\par
+}
+\makeatother

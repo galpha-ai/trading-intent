@@ -1,0 +1,136 @@
+\documentclass{article}
+
+\usepackage{url,algorithm,amsthm,amsmath,amsfonts,verbatim}
+\usepackage{stix}
+\newtheorem{lem}{Lemma}
+\newtheorem{thm}{Theorem}
+\usepackage[toc,page]{appendix}
+\input{defs.tex}
+\usepackage[preprint]{neurips_2021}
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\setCJKmainfont{Songti SC}
+\setCJKsansfont{PingFang SC}
+\setCJKmonofont{Heiti SC}
+\XeTeXlinebreaklocale "zh"
+\XeTeXlinebreakskip = 0pt plus 1pt
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{color}
+
+\graphicspath{{figures/build/}}
+\hypersetup{
+    pdftitle={Trade Intent Models：跨市场交易与 Agent 策略执行的语义接口},
+    pdfauthor={Bill Sun and Alpha.Dev team},
+    colorlinks=true,
+    urlcolor=blue,
+    linkcolor=blue,
+    citecolor=blue
+}
+
+\renewenvironment{abstract}
+{%
+  \vskip 0.075in%
+  \centerline{\large\bf 摘要}%
+  \vspace{0.5ex}%
+  \begin{quote}%
+}
+{
+  \par%
+  \end{quote}%
+  \vskip 1ex%
+}
+
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
+
+\title{Trade Intent Models：\\跨市场交易与 Agent 策略执行的语义接口}
+\author{Bill Sun and Alpha.Dev team\\ \url{https://alpha.dev/}}
+\date{}
+
+\begin{document}
+\maketitle
+\small
+
+\begin{abstract}
+交易系统仍然被资产类别、交易场所、执行方式与技术栈所割裂。一个经济想法往往需要分别映射到券商 API、中心化交易所、去中心化协议、期权市场、预测市场以及链上交易流程，而这些系统各自拥有不同的语法与操作假设。本文主张，应当把 trade intent 视为交易系统中的第一类语义层。所谓 trade intent model，本质上是一种领域专用语言，它把含糊的人类请求编译成精确、可机读验证、且与具体执行后端解耦的经济动作表示。它在系统中的角色，类似于搜索里的 semantic parsing 或优化中的 CVXPY：用户描述想要达成什么，系统将其编译成规范化表示，再由下游模块翻译成可执行指令。本文的核心论点是，一个设计良好的 trade intent model 会在语义精度、跨 venue 互操作性、策略可组合性与 agent 化自动执行四个维度创造价值，并成为更大一套 action-oriented workflow 的表示层。
+\end{abstract}
+
+\section{引言}
+
+问题的核心很简单：人的交易意图是高层的，而执行基础设施却是碎片化、低层化的。用户通常以结果、暴露、对冲与约束来思考问题；但交易 venue 暴露给外部的往往是订单类型、产品标识符、链上交易格式、路由规则和互不兼容的 API。把前者直接映射到后者，天然会导致脆弱的系统。
+
+而且，这个问题正在因交易入口的变化而迅速加剧。对于人类用户而言，越来越多的输入并不是标准化订单，而是 chat、voice，甚至可以称为 vibe trading 的模糊指令，例如“帮我在收盘前拿一点上行暴露”“如果市场反转就帮我对冲”“在多个 venue 中买到这个 thesis 的最佳表达”。这些表达对人类来说自然，但并不是安全的执行格式。它们富含意图，却严重缺乏规格。
+
+对于机器端而言，越来越多的用户正在把通用型或非专业 agent 直接连接到钱包、broker API 与 DeFi protocol 上。这些 agent 可以理解自然语言、调用工具、执行多步金融动作，但它们通常缺少一个稳定的语义层，用来隔离“用户真正想表达的意思”和“不可逆的高权限金融执行动作”。在这种情况下，非结构化 prompt 实际上就变成了直接的 action surface。
+
+近期事件说明了这一点。2026 年 2 月，基于 OpenClaw 的 autonomous crypto agent Lobstar Wilde 因误解了一次小额转账请求，向陌生地址误转了约 5240 万枚 LOBSTAR。2026 年 3 月，中国互联网金融协会则警示称，将 OpenClaw 一类系统用于金融场景，可能暴露敏感凭证，并触发错误转账或非预期投资购买。这些案例共同指向一个系统问题：真正缺失的并不总是预测能力，也未必是智能合约本身，而是位于含糊语言与高权限动作之间的严格中间层。
+
+这种错位具体表现为三类持续性失败：自然语言带有歧义，执行接口彼此割裂，而没有稳定中间表示的自动化系统则难以审计、难以调试。
+
+对应的编译流程可以写成：
+\begin{center}
+\small
+用户想法或自然语言指令 $\rightarrow$ 高层 trade intent $\rightarrow$ \\
+执行任务与执行策略 $\rightarrow$ venue-specific orders and transactions.
+\end{center}
+这个框架把目标从“更好地下单”提升为一个面向 action 的语义接口。
+
+\section{Trade Intent 作为领域专用语言}
+
+Trade intent model 是对期望经济动作的形式化中间表示。最恰当的理解方式，是把它视为一种用于交易语义的领域专用语言。它的作用并不只是记录订单，而是以一种精确、规范、与执行后端解耦且可供机器操作的方式，表达用户真正想要的东西。
+
+最关键的设计原则是：schema 应当表达经济意义，而不是 venue 的表层语法。一个有用的 intent object 需要容纳经济目标、工具与动作类型、组合结构、约束条件、执行偏好，以及从 parsing 到 validation 再到 lowering 的 provenance。也正是因为有了这一层，不同表述的相似请求才能映射到接近的结构，下游模块也才能围绕同一个对象进行算法化推理，而不是一条条处理孤立指令。
+
+例如下面这样的自然语言请求：
+\begin{quote}
+\small
+在 Solana 上买 10 美元的 NVDAx；在 Base 与 Arbitrum 中选择流动性更好的 venue 买 5 美元的 PAX Gold；买一张关于“2026 年 2 月 NVDA 能否突破 200 美元”的 Yes 合约，再买一张关于“今年美联储会降息 2 次”的合约；同时通过 Alpaca via MCP 建立一个 6 月 6 日到期、190/200 行权价的 AAPL bull call spread。
+\end{quote}
+这个请求在经济意义上是连贯的，但在执行层面却高度异构。Trade intent model 的作用，就是把它视为一个结构化 trade vector，而不是一包彼此无关的 API 调用。
+
+\section{为什么 Trade Intent Model 重要}
+
+Trade intent model 至少在四个维度产生价值。第一，它提高语义精度与可调试性，使系统能够在执行前发现信息缺失、约束冲突或不可行请求。第二，它实现跨 venue 互操作性，使现货、期权、perp、预测市场、broker 流程与链上动作都能通过同一语义接口表示。第三，它提升策略可组合性，使 multi-leg package、路由替代方案、成本与风险权衡、以及 portfolio-level constraints 可以联合评估。第四，它为 agent 化自动执行提供共享对象，使 parser、validator、simulator、planner、monitor 与 agent 能围绕同一个 contract 协同工作，而不必依赖脆弱的 prompt glue。
+
+如果缺少这一中间表示，这些优势就会退化成黑箱自动化；而一旦拥有它，失败也就可以被明确定位为语言理解、intent 构造，或执行翻译中的某一层问题。
+
+\section{作为扩展层的分层执行}
+
+执行本身也必须分层。最好的类比来自机器人系统：high-level planning 与 low-level motor execution 是两层不同的问题。交易系统同样应当把 high-level trade intent 与 low-level execution tasks / policies 区分开来。
+
+但在本文语境下，这一分层执行栈应被理解为对当前仓库工作的扩展，而不是对现有代码已经完整实现这些层的陈述。高层 trade intent 是规划层。它以不保留经济性歧义的方式承载用户目标，同时又提供了进行 cross-venue reasoning、liquidity aggregation 与 policy-aware routing 的正确界面。
+
+例如，``在收盘前买入 10 万股 AAPL''，或者 ``本周买入 100 万美元名义的 NVDA call option''，都不应被直接当作单一订单处理，而应先被表示成包含名义规模、时间范围、impact tolerance、紧迫度与 venue constraints 的 portfolio-level object。只有这样，它们才应被进一步分解成低层 execution task，并分别通过 TWAP、VWAP、broker-native smart routing、链上的 naive slicing、AMM / aggregator execution，或者包含 market-structure / macro-sensitive signal 的更复杂低延迟策略来完成。
+
+这种分层也为 microstructure-level improvement 提供了清晰位置。语义层负责 economic correctness，执行层负责 realized execution quality。用户只在自然语言层指定一次 portfolio objective，而系统可以在不改变原始 intent 的前提下，不断搜索更优的低层实现。当前 GitHub 仓库并未实现这一完整的 planning-and-execution hierarchy；它是在本文中被提出和延展的下一层架构。
+
+\section{系统视角与仓库边界}
+
+这一模块的最终目标，不应被理解为一个“更方便的券商界面”，而更像是一层 action-description layer 与 agent workflow substrate：用户只提供一个 idea，系统便能合成候选策略、完成验证，并支持一键部署到 agent platform。
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.84\linewidth]{pipeline-figure.pdf}
+    \caption{TIM 作为稳定表示层，连接 idea ingestion、execution-policy selection 与 venue-native deployment。}
+    \label{fig:pipeline-zh}
+\end{figure}
+
+从系统角度看，pipeline 可以概括为：(1) idea ingestion；(2) semantic parsing into high-level trade intent；(3) strategy synthesis and task decomposition；(4) validation and policy checks；(5) low-level execution policy selection；以及 (6) execution compilation and deployment。
+
+Trade intent schema 正是贯穿这些阶段的稳定接口。配套的 GitHub 仓库 \texttt{galpha-ai/intent-kit}（\href{https://github.com/galpha-ai/intent-kit}{github.com/galpha-ai/intent-kit}）应被理解为这一架构中 contract layer 的当前参考实现：schema definition、template generation、parsing、validation 与 dispatch。也正因为如此，parser、schema、validator、simulator、adapter 与 agent 可以独立演化，但仍通过共享表示保持兼容。
+
+为避免过度表述，需要明确区分“当前仓库已实现的部分”和“本文提出的完整系统”。当前仓库覆盖的是 semantic gateway layer：intent schema、agent-facing template、parsing、validation 与 dispatch；而 high-level portfolio planning、strategy synthesis、execution-policy search 与 low-level algorithmic execution 则属于建立在这一接口之上的未来层。
+
+\section{设计原则与开放问题}
+
+一个可落地的 trade intent language 至少应满足五个原则：语义完整性、规范化结构、关注点分离、可验证性与可扩展性。一个 wrapper 只是翻译语法；真正的 trade intent model 组织的是语义。仍然存在若干重要研究问题：schema 的抽象层级如何选择；lowering 过程中如何保证 semantic preservation；在用户请求不完整时哪些字段可以安全推断；partial fill 与 cross-venue failure recovery 如何处理；以及在更 agentic 的系统中，risk、policy 与 audit layer 应如何约束 agent autonomy。这些都不是边缘问题，而是 deployment-grade trade intent system 的核心设计约束。
+
+\section{结论}
+
+Trade intent model 在人类交易想法与异构执行基础设施之间提供了一个语义接口。它把含糊输入转化为精确、可机读验证、且与具体执行后端解耦的经济动作表示。它的价值远不止更整洁的 order syntax：一个设计良好的 trade intent layer 能实现 cross-venue interoperability、multi-leg strategy composability、可调试性提升，以及 high-level economic intent 与 low-level execution policy 的原则性分离。从这个意义上说，trade intent model 不应被视为某个产品 feature，而应被视为一种基础设施：它是让碎片化市场、异构 API 与 agent platform 能通过同一种 economic-intent language 协同工作的共享语义底座。
+
+\end{document}

@@ -206,8 +206,11 @@ tim/
 ## Documentation
 
 - [Architecture](docs/design/architecture.md)
+- [System Diagram](docs/design/system-diagram.md)
 - [Intent XML Schema](docs/reference/intent-xml-schema.md)
 - [Dispatch Protocol](docs/reference/dispatch-protocol.md)
+- [Research Workspace](docs/research/README.md)
+- [Paper Outline](docs/research/paper-outline.md)
 
 ## Use Cases
 

@@ -40,12 +40,11 @@ pub async fn dispatch(
     dispatchers: &[DispatcherConfig],
     http_client: &reqwest::Client,
 ) -> Result<DispatchResponse, DispatchError> {
-    let matched = matcher::find_match(&intent, dispatchers).ok_or_else(|| {
-        DispatchError::NoMatch {
+    let matched =
+        matcher::find_match(&intent, dispatchers).ok_or_else(|| DispatchError::NoMatch {
             intent_type: intent.intent_type.clone(),
             chain_id: intent.chain_id.clone(),
-        }
-    })?;
+        })?;
 
     sender::send(intent, matched, http_client).await
 }

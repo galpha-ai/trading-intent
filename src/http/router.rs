@@ -1,4 +1,7 @@
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
@@ -27,7 +30,10 @@ pub fn build(config: Config, registry: SchemaRegistry) -> Router {
         .route("/api/v1/validate", post(handlers::validate_intent))
         .route("/api/v1/parse", post(handlers::parse_intent))
         .route("/api/v1/templates", get(handlers::list_templates))
-        .route("/api/v1/templates/{intent_type}", get(handlers::get_template))
+        .route(
+            "/api/v1/templates/{intent_type}",
+            get(handlers::get_template),
+        )
         .route("/api/v1/dispatchers", get(handlers::list_dispatchers))
         .route("/health", get(handlers::health))
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive()))

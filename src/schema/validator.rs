@@ -28,22 +28,18 @@ pub enum ValidationError {
 /// Steps:
 /// 1. Extract `type` field → look up schema
 /// 2. Walk `fields` definition recursively, check required/type/constraints
-pub fn validate(
-    intent: &Value,
-    registry: &SchemaRegistry,
-) -> Result<(), ValidationError> {
+pub fn validate(intent: &Value, registry: &SchemaRegistry) -> Result<(), ValidationError> {
     // Extract intent type
-    let intent_type = intent
-        .get("type")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| ValidationError::MissingField {
+    let intent_type = intent.get("type").and_then(|v| v.as_str()).ok_or_else(|| {
+        ValidationError::MissingField {
             path: "type".into(),
-        })?;
+        }
+    })?;
 
     // Look up schema
-    let schema = registry.get(intent_type).ok_or_else(|| {
-        ValidationError::UnknownType(intent_type.to_string())
-    })?;
+    let schema = registry
+        .get(intent_type)
+        .ok_or_else(|| ValidationError::UnknownType(intent_type.to_string()))?;
 
     // Validate top-level fields
     validate_fields(intent, &schema.fields, "")?;
@@ -67,7 +63,7 @@ fn validate_fields(
         let path = if parent_path.is_empty() {
             name.to_string()
         } else {
-            format!("{}.{}", parent_path, name)
+            format!("{parent_path}.{name}")
         };
 
         let field_value = value.get(name);
@@ -94,7 +90,7 @@ fn validate_fields(
                 if n < min {
                     return Err(ValidationError::InvalidValue {
                         path,
-                        reason: format!("must be >= {}", min),
+                        reason: format!("must be >= {min}"),
                     });
                 }
             }
@@ -104,7 +100,7 @@ fn validate_fields(
                 if n > max {
                     return Err(ValidationError::InvalidValue {
                         path,
-                        reason: format!("must be <= {}", max),
+                        reason: format!("must be <= {max}"),
                     });
                 }
             }
@@ -114,7 +110,7 @@ fn validate_fields(
                 if n <= min_ex {
                     return Err(ValidationError::InvalidValue {
                         path,
-                        reason: format!("must be > {}", min_ex),
+                        reason: format!("must be > {min_ex}"),
                     });
                 }
             }
@@ -124,7 +120,7 @@ fn validate_fields(
                 if n >= max_ex {
                     return Err(ValidationError::InvalidValue {
                         path,
-                        reason: format!("must be < {}", max_ex),
+                        reason: format!("must be < {max_ex}"),
                     });
                 }
             }
@@ -134,12 +130,14 @@ fn validate_fields(
         if let Some(pattern_str) = field_def.get("pattern").and_then(|v| v.as_str()) {
             if let Some(s) = fv.as_str() {
                 let re = Regex::new(pattern_str).map_err(|e| {
-                    ValidationError::SchemaError(format!("invalid regex pattern '{}': {}", pattern_str, e))
+                    ValidationError::SchemaError(format!(
+                        "invalid regex pattern '{pattern_str}': {e}"
+                    ))
                 })?;
                 if !re.is_match(s) {
                     return Err(ValidationError::InvalidValue {
                         path,
-                        reason: format!("does not match pattern: {}", pattern_str),
+                        reason: format!("does not match pattern: {pattern_str}"),
                     });
                 }
             }
@@ -148,14 +146,11 @@ fn validate_fields(
         // Enum constraint
         if let Some(enum_values) = field_def.get("enum").and_then(|v| v.as_sequence()) {
             if let Some(s) = fv.as_str() {
-                let allowed: Vec<&str> = enum_values
-                    .iter()
-                    .filter_map(|v| v.as_str())
-                    .collect();
+                let allowed: Vec<&str> = enum_values.iter().filter_map(|v| v.as_str()).collect();
                 if !allowed.iter().any(|a| a.eq_ignore_ascii_case(s)) {
                     return Err(ValidationError::InvalidValue {
                         path,
-                        reason: format!("must be one of: {:?}", allowed),
+                        reason: format!("must be one of: {allowed:?}"),
                     });
                 }
             }
@@ -172,7 +167,7 @@ fn validate_fields(
         if let Some(items_def) = field_def.get("items") {
             if let Some(arr) = fv.as_array() {
                 for (i, element) in arr.iter().enumerate() {
-                    let elem_path = format!("{}[{}]", path, i);
+                    let elem_path = format!("{path}[{i}]");
                     // Type check on each element
                     if let Some(item_type) = items_def.get("type").and_then(|v| v.as_str()) {
                         validate_type(element, item_type, &elem_path)?;
@@ -195,11 +190,12 @@ fn validate_fields(
         // constraints list (e.g. exactly_one_of)
         if let Some(constraints) = field_def.get("constraints").and_then(|v| v.as_sequence()) {
             for constraint in constraints {
-                if let Some(exactly_one) = constraint.get("exactly_one_of").and_then(|v| v.as_sequence()) {
-                    let field_names: Vec<&str> = exactly_one
-                        .iter()
-                        .filter_map(|v| v.as_str())
-                        .collect();
+                if let Some(exactly_one) = constraint
+                    .get("exactly_one_of")
+                    .and_then(|v| v.as_sequence())
+                {
+                    let field_names: Vec<&str> =
+                        exactly_one.iter().filter_map(|v| v.as_str()).collect();
                     let present_count = field_names
                         .iter()
                         .filter(|f| fv.get(**f).is_some() && fv.get(**f) != Some(&Value::Null))
@@ -207,7 +203,7 @@ fn validate_fields(
                     if present_count != 1 {
                         return Err(ValidationError::ConstraintViolation {
                             path: path.clone(),
-                            rule: format!("exactly one of {:?} must be present", field_names),
+                            rule: format!("exactly one of {field_names:?} must be present"),
                         });
                     }
                 }
@@ -243,13 +239,13 @@ fn validate_one_of(
     if present.is_empty() {
         return Err(ValidationError::ConstraintViolation {
             path: path.into(),
-            rule: format!("must contain one of: {:?}", variant_names),
+            rule: format!("must contain one of: {variant_names:?}"),
         });
     }
     if present.len() > 1 {
         return Err(ValidationError::ConstraintViolation {
             path: path.into(),
-            rule: format!("must contain only one of: {:?}, found: {:?}", variant_names, present),
+            rule: format!("must contain only one of: {variant_names:?}, found: {present:?}"),
         });
     }
 
@@ -258,11 +254,14 @@ fn validate_one_of(
     let chosen_value = &value[chosen_name.as_str()];
     let variant_def = variants
         .iter()
-        .find_map(|v| v.as_mapping()?.get(serde_yaml::Value::String(chosen_name.clone())))
+        .find_map(|v| {
+            v.as_mapping()?
+                .get(serde_yaml::Value::String(chosen_name.clone()))
+        })
         .and_then(|v| v.get("fields"));
 
     if let Some(fields) = variant_def {
-        let variant_path = format!("{}.{}", path, chosen_name);
+        let variant_path = format!("{path}.{chosen_name}");
         validate_fields(chosen_value, fields, &variant_path)?;
     }
 
@@ -279,9 +278,10 @@ fn validate_type(value: &Value, expected: &str, path: &str) -> Result<(), Valida
         _ => true, // unknown type — skip check
     };
     if !ok {
+        let actual = value_type_name(value);
         return Err(ValidationError::InvalidValue {
             path: path.into(),
-            reason: format!("expected {}, got {}", expected, value_type_name(value)),
+            reason: format!("expected {expected}, got {actual}"),
         });
     }
     Ok(())
@@ -368,7 +368,10 @@ fields:
         let registry = SchemaRegistry { schemas };
 
         let intent = json!({"type": "T", "chain_id": "x", "pct": 101.0});
-        assert!(matches!(validate(&intent, &registry).unwrap_err(), ValidationError::InvalidValue { .. }));
+        assert!(matches!(
+            validate(&intent, &registry).unwrap_err(),
+            ValidationError::InvalidValue { .. }
+        ));
 
         let intent = json!({"type": "T", "chain_id": "x", "pct": 100.0});
         assert!(validate(&intent, &registry).is_ok());
@@ -390,7 +393,10 @@ fields:
 
         // Exactly 10 should fail (exclusive)
         let intent = json!({"type": "T", "chain_id": "x", "val": 10.0});
-        assert!(matches!(validate(&intent, &registry).unwrap_err(), ValidationError::InvalidValue { .. }));
+        assert!(matches!(
+            validate(&intent, &registry).unwrap_err(),
+            ValidationError::InvalidValue { .. }
+        ));
 
         // 9.99 should pass
         let intent = json!({"type": "T", "chain_id": "x", "val": 9.99});
@@ -452,7 +458,10 @@ fields:
         assert!(validate(&intent, &registry).is_ok());
 
         let intent = json!({"type": "T", "chain_id": "x", "side": "invalid"});
-        assert!(matches!(validate(&intent, &registry).unwrap_err(), ValidationError::InvalidValue { .. }));
+        assert!(matches!(
+            validate(&intent, &registry).unwrap_err(),
+            ValidationError::InvalidValue { .. }
+        ));
     }
 
     fn one_of_registry() -> SchemaRegistry {
@@ -572,12 +581,16 @@ fields:
         let registry = SchemaRegistry { schemas };
 
         // Valid array
-        let intent = json!({"type": "T", "chain_id": "x", "items": [{"amount": 1.0}, {"amount": 2.0}]});
+        let intent =
+            json!({"type": "T", "chain_id": "x", "items": [{"amount": 1.0}, {"amount": 2.0}]});
         assert!(validate(&intent, &registry).is_ok());
 
         // Missing required field in array element
         let intent = json!({"type": "T", "chain_id": "x", "items": [{"amount": 1.0}, {}]});
-        assert!(matches!(validate(&intent, &registry).unwrap_err(), ValidationError::MissingField { .. }));
+        assert!(matches!(
+            validate(&intent, &registry).unwrap_err(),
+            ValidationError::MissingField { .. }
+        ));
     }
 
     #[test]
@@ -606,6 +619,9 @@ fields:
         assert!(validate(&intent, &registry).is_ok());
 
         let intent = json!({"type": "T", "chain_id": "x", "level1": {"level2": {"value": -1.0}}});
-        assert!(matches!(validate(&intent, &registry).unwrap_err(), ValidationError::InvalidValue { .. }));
+        assert!(matches!(
+            validate(&intent, &registry).unwrap_err(),
+            ValidationError::InvalidValue { .. }
+        ));
     }
 }

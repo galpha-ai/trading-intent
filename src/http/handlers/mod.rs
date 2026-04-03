@@ -54,29 +54,49 @@ fn err(code: &str, msg: impl Into<String>) -> (StatusCode, Json<ErrorResponse>) 
     (
         StatusCode::BAD_REQUEST,
         Json(ErrorResponse {
-            error: ErrorDetail { code: code.into(), message: msg.into() },
+            error: ErrorDetail {
+                code: code.into(),
+                message: msg.into(),
+            },
         }),
     )
 }
 
-fn err_status(status: StatusCode, code: &str, msg: impl Into<String>) -> (StatusCode, Json<ErrorResponse>) {
+fn err_status(
+    status: StatusCode,
+    code: &str,
+    msg: impl Into<String>,
+) -> (StatusCode, Json<ErrorResponse>) {
     (
         status,
         Json(ErrorResponse {
-            error: ErrorDetail { code: code.into(), message: msg.into() },
+            error: ErrorDetail {
+                code: code.into(),
+                message: msg.into(),
+            },
         }),
     )
 }
 
 /// Collect all shorthands from schemas matching the intent type (or all if unknown).
-fn collect_shorthands(state: &AppState, intent_type: Option<&str>) -> Vec<crate::schema::loader::XmlShorthand> {
+fn collect_shorthands(
+    state: &AppState,
+    intent_type: Option<&str>,
+) -> Vec<crate::schema::loader::XmlShorthand> {
     if let Some(t) = intent_type {
-        state.registry.get(t)
+        state
+            .registry
+            .get(t)
             .map(|s| s.xml_shorthands.clone())
             .unwrap_or_default()
     } else {
         // If type unknown at parse time, collect all shorthands
-        state.registry.list().iter().flat_map(|s| s.xml_shorthands.clone()).collect()
+        state
+            .registry
+            .list()
+            .iter()
+            .flat_map(|s| s.xml_shorthands.clone())
+            .collect()
     }
 }
 
@@ -88,15 +108,17 @@ fn parse_and_validate(
     // Parse with all shorthands (we don't know the type yet)
     let shorthands = collect_shorthands(state, None);
     let parsed = intent::parse_xml(xml, &shorthands)
-        .map_err(|e| err("PARSE_ERROR", format!("Invalid XML: {}", e)))?;
+        .map_err(|e| err("PARSE_ERROR", format!("Invalid XML: {e}")))?;
 
     // Extract type and chain_id
-    let intent_type = parsed.get("type")
+    let intent_type = parsed
+        .get("type")
         .and_then(|v| v.as_str())
         .ok_or_else(|| err("PARSE_ERROR", "Missing <type> element"))?
         .to_string();
 
-    let chain_id = parsed.get("chain_id")
+    let chain_id = parsed
+        .get("chain_id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| err("PARSE_ERROR", "Missing <chain_id> element"))?
         .to_string();
@@ -136,7 +158,9 @@ pub async fn dispatch_intent(
                     "EXECUTOR_ERROR",
                 ),
                 dispatch::DispatchError::Timeout { .. } => (StatusCode::GATEWAY_TIMEOUT, "TIMEOUT"),
-                dispatch::DispatchError::RequestFailed(_) => (StatusCode::BAD_GATEWAY, "DISPATCH_FAILED"),
+                dispatch::DispatchError::RequestFailed(_) => {
+                    (StatusCode::BAD_GATEWAY, "DISPATCH_FAILED")
+                }
             };
             error!(error = %e, "Dispatch failed");
             err_status(status, code, e.to_string())
@@ -161,14 +185,12 @@ pub async fn parse_intent(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
     let shorthands = collect_shorthands(&state, None);
     let parsed = intent::parse_xml(&req.intent, &shorthands)
-        .map_err(|e| err("PARSE_ERROR", format!("Invalid XML: {}", e)))?;
+        .map_err(|e| err("PARSE_ERROR", format!("Invalid XML: {e}")))?;
     Ok(Json(parsed))
 }
 
 /// GET /api/v1/templates — list available intent templates.
-pub async fn list_templates(
-    State(state): State<AppState>,
-) -> Json<Vec<template::TemplateSummary>> {
+pub async fn list_templates(State(state): State<AppState>) -> Json<Vec<template::TemplateSummary>> {
     Json(template::list_templates(&state.registry))
 }
 
@@ -177,22 +199,36 @@ pub async fn get_template(
     State(state): State<AppState>,
     Path(intent_type): Path<String>,
 ) -> Result<Json<template::TemplateInfo>, (StatusCode, Json<ErrorResponse>)> {
-    let schema = state.registry.get(&intent_type)
-        .ok_or_else(|| err_status(StatusCode::NOT_FOUND, "NOT_FOUND",
-            format!("No schema for intent type: {}", intent_type)))?;
+    let schema = state.registry.get(&intent_type).ok_or_else(|| {
+        err_status(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            format!("No schema for intent type: {intent_type}"),
+        )
+    })?;
     Ok(Json(template::get_template(schema)))
 }
 
 /// GET /api/v1/dispatchers
 pub async fn list_dispatchers(State(state): State<AppState>) -> Json<Vec<DispatcherInfo>> {
-    Json(state.config.dispatchers.iter().map(|d| DispatcherInfo {
-        intent_type: d.match_rule.intent_type.clone(),
-        chain_id: d.match_rule.chain_id.clone(),
-        endpoint: d.endpoint.clone(),
-    }).collect())
+    Json(
+        state
+            .config
+            .dispatchers
+            .iter()
+            .map(|d| DispatcherInfo {
+                intent_type: d.match_rule.intent_type.clone(),
+                chain_id: d.match_rule.chain_id.clone(),
+                endpoint: d.endpoint.clone(),
+            })
+            .collect(),
+    )
 }
 
 /// GET /health
 pub async fn health() -> Json<HealthResponse> {
-    Json(HealthResponse { status: "ok", service: "tim" })
+    Json(HealthResponse {
+        status: "ok",
+        service: "tim",
+    })
 }
