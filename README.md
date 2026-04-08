@@ -28,6 +28,9 @@ year?”, and establish an AAPL June 6 190/200 bull call spread through Alpaca v
 Example of Event-conditional order from human vibe trading:
 "When @coinbasemarkets posts on X, that some coin is going to list on Coinbase,  1)buy into this coin 2) Go to polymarket and find the bet related to this coin, and buy into the contract that this coin price will go up."
 
+
+<img width="880" height="1460" alt="image" src="https://github.com/user-attachments/assets/0223be2d-afd2-4412-af40-748bbbbb5781" />
+
 ## Why TIM?
 
 As AI agents become a mainstream interface for on-chain trading, a critical gap has emerged: **there is no standard way for agents to express trading intents**. Every agent-to-executor integration is a bespoke, fragile bridge. Adding a new chain means rewriting agent logic. Adding a new strategy means rewriting executor contracts. The coupling is expensive, error-prone, and doesn't scale.
