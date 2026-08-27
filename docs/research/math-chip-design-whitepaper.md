@@ -8,11 +8,11 @@
 
 ## Abstract
 
-Existing AI-for-chip-design systems optimize inside a problem someone else formulated: the design variables, objectives, constraints, and simulators are given. This paper specifies, concretely, a system that *constructs* the formulation and then *searches formulation space* with an explicit operator set. The inner loop defines the design problem as a typed intermediate representation $\mathcal{P} = (W, Z, H, X, J, C, U, B)$ and gives falsifiable mathematics for each component: structure hypotheses that ship as machine-checkable certificates, communication lower bounds that gate search, a three-layer overlap/contention performance model, and a library of **reformulation operators** $R_1..R_{10}$ that make constraint transmutation a trainable move rather than an instruction. Bottlenecks are identified by **constraint value** — the marginal value of constraint relaxation, of which the convex dual is one efficient estimator — and simulators are split into three roles: training environment, hidden falsifier, and calibration oracle. The outer loop lifts the formulation to belief-state control over a partially observed technology and supply world: readiness as a hidden state estimated from noisy signals, deployment as optimal stopping, supply, power, and facilities as capacity constraints whose prices coordinate the two loops Benders-style, and frontier expansion as *causal intervention* on the world model, not forecasting. The objective is discounted **useful delivered service**, not peak chip performance. Every model here is stated so that a simulator, a dataset, or a historical backtest can refute it; §21 pins each research hypothesis to an experiment.
+Existing AI-for-chip-design systems optimize inside a problem someone else formulated: the design variables, objectives, constraints, and simulators are given. This paper specifies, concretely, a system that *constructs* the formulation and then *searches formulation space* with an explicit operator set. The inner loop defines the design problem as a typed intermediate representation $\mathcal{P} = (W, Z, H, X, J, C, U, B)$ and gives falsifiable mathematics for each component: structure hypotheses that ship as machine-checkable certificates, communication lower bounds that gate search, a three-layer overlap/contention performance model, and a library of **reformulation operators** $R_1..R_{10}$ that make constraint transmutation a trainable move rather than an instruction. Bottlenecks are identified by **constraint value** — the marginal value of constraint relaxation, of which the convex dual is one efficient estimator — and simulators are split into three roles: training environment, hidden falsifier, and calibration oracle. The outer loop lifts the formulation to belief-state control over a partially observed technology and supply world: readiness as a hidden state estimated from noisy signals, deployment as optimal stopping, supply, power, and facilities as capacity constraints whose prices coordinate the two loops Benders-style, and frontier expansion as *causal intervention* on the world model, not forecasting. The objective is discounted **useful delivered service**, not peak chip performance. Structural hypotheses are drawn from an explicit, transferable **structural prior** over model space, and every stochastic element of both loops is *determinized* — uncertainty lives in explicit finite scenario sets and particle beliefs carried in the state, never in the transition — so the entire program is a deterministic optimization/RL problem with exact, machine-checkable rewards. Every model here is stated so that a simulator, a dataset, or a historical backtest can refute it; §22 pins each research hypothesis to an experiment.
 
 ## 0. Reading guide: the claims this program stands or falls on
 
-The program is not a manifesto; it is seven falsifiable hypotheses (experiments in §21):
+The program is not a manifesto; it is seven falsifiable hypotheses (experiments in §22):
 
 - **A.** Explicit mathematical models improve transfer across workload/technology shift.
 - **B.** Simulator ensembles with hidden falsifiers beat Monte Carlo of one simulator.
@@ -73,6 +73,8 @@ Every structural hypothesis $H$ ships as a triple $(H, \text{statistic}, \text{r
 | Separability | $J(x) \approx \sum_i J_i(x_i)$ | $R^2$ of additive fit; interaction ANOVA | search for high-order interaction terms |
 | Conservation | flow balance $A f = 0$ on the traffic graph | residual $\|Af\|$ on simulator traces | trace mining for buffering/drop events |
 | Invariance | $f(gx) = f(x)$ for group $G$ | orbit variance | symmetry-breaking instance search |
+
+**Where hypotheses come from: the structural prior.** $H$ is not proposed from nothing. The system carries an explicit prior $\pi_0(H \mid \phi(W, Z))$ over the hypothesis grammar above, conditioned on cheap workload features $\phi$ (graph statistics, reuse-distance profiles, operator mix) and seeded from domain knowledge that is itself structural: physics supplies conservation and locality (§6's "law" constraints induce flow-balance and distance-decay hypotheses); linear algebra supplies low-rank and separability candidates for tensor programs; regularity of the computation graph supplies invariance candidates. The prior is *transferable state, not folklore*: every certificate outcome (survived/revoked, on which workload family) is logged, and $\pi_0$ is re-fit across problems — hierarchical Bayes or simple frequency reweighting at first — so that hypothesis proposal itself improves with experience. This is the precise sense in which the system accumulates domain knowledge: as a calibrated prior over *which mathematical structures tend to survive falsification in which regimes*, rather than as text.
 
 A surviving hypothesis yields a **Structure Certificate**: a machine-checkable record `{claim, domain of validity, statistic, threshold, counterexample budget spent, expiry condition}`. Certificates are cited by downstream models; when one is revoked (a counterexample is found), every model citing it is flagged for revision (§9). The training loop this induces — *conjecture → operational definition → test → counterexample search* — is the core primitive of the whole program.
 
@@ -161,7 +163,7 @@ $$
 \mathcal{P}_{k+1} = R_{\theta}(\mathcal{P}_k, C_i, \text{evidence}), \qquad \text{accept if } V(\mathcal{P}_{k+1}) > V(\mathcal{P}_k),
 $$
 
-where $V(\mathcal{P})$ is the formulation-quality metric of §10 (realized downstream design value net of solve and verification cost) and *evidence* = the constraint values of §8, residuals of §9, and certificates in force. Operator applications are logged as a derivation tree, so a discovered architecture carries its formulation lineage — which is precisely the training data for $R_\theta$. Hypothesis D (§21) tests whether learning over this operator library beats parameter search inside a fixed $\mathcal{P}$.
+where $V(\mathcal{P})$ is the formulation-quality metric of §10 (realized downstream design value net of solve and verification cost) and *evidence* = the constraint values of §8, residuals of §9, and certificates in force. Operator applications are logged as a derivation tree, so a discovered architecture carries its formulation lineage — which is precisely the training data for $R_\theta$. Hypothesis D (§22) tests whether learning over this operator library beats parameter search inside a fixed $\mathcal{P}$.
 
 ## 8. Constraint value: the invention signal, generalized
 
@@ -349,7 +351,27 @@ Three machine-checkable artifacts make the outer loop auditable:
 2. **Roadmap Certificate**: nominal path $x_0 \to x_1 \to x_2$, fallback branches, trigger conditions on *beliefs* ("if $b_t(\text{HBM-next at volume by Q3}) < 0.4$, switch to branch B"), frontier-expansion actions with their causal valuation, and preserved options with computed option value.
 3. **Calibration record**: at historical date $t$, hide the future; have the system form beliefs over $(\tau_j, Q_j, C_j)$ and design the $N$-year roadmap; score belief calibration (CRPS) and roadmap regret against the realized world. The DRAM, NAND, node-cadence, and interconnect histories are the training set; realized past interventions are the identification data for §18.
 
-## 20. The algorithm, in one place
+## 20. Determinization: the whole program as a deterministic optimization/RL problem
+
+Robustness and trainability point at the same requirement: **no randomness in the transition function**. Every stochastic element of both loops is reduced to a deterministic counterpart in which uncertainty is an explicit, finite, versioned object carried in the *state* — so that any run is exactly reproducible, any reward is exactly recomputable, and credit assignment is never confounded by environment noise.
+
+The deterministic reductions, element by element:
+
+| Stochastic object | Deterministic counterpart |
+|---|---|
+| workload distribution $P(W)$ | a pinned, versioned scenario set $\hat{W} = \{w_1..w_N\}$ with weights (sample-average approximation [10]); refreshing $\hat{W}$ is an explicit, logged state change, not sampling noise |
+| chance constraint $\Pr[g(x,\xi) > 0] \le \epsilon$ | scenario counterpart over an enumerated $\Xi_k$: at most $\lfloor \epsilon N \rfloor$ violations on the pinned set |
+| robust constraint $\forall \xi \in \Xi$ | finite $\Xi_k$ grown by the falsifier's cutting-plane loop (§9) — the counterexample archive $\mathcal{C}$ *is* the uncertainty set, and each $\arg\max$ attack is itself a deterministic search with a pinned seed |
+| simulator noise / nondeterminism | pinned seeds and versioned oracle builds; residual nondeterminism is treated as a model defect (§9's taxonomy) and a legibility cost (§10), to be modeled or removed ($R_5$) — never averaged over silently |
+| belief $b_t$ over technology state $z_t$ (§13) | a finite particle set $\{(z^{(i)}, p^{(i)})\}$ carried in the state; the Bayes update on a logged observation is a deterministic map |
+| multi-stage stochastic roadmap (§15) | the deterministic equivalent over a finite scenario tree with nonanticipativity constraints [10] — a single large deterministic program |
+| risk functionals $\text{CVaR}, \max$-regret | exact finite formulas over the tree's leaves (CVaR is an LP over scenarios [11]) |
+
+The training problem then closes into a **deterministic MDP**: state $s_k = (\mathcal{P}_k,\ \text{certificates},\ \mathcal{D}, \mathcal{M}, \mathcal{C},\ \hat{W}, \Xi_k,\ b_t)$; actions = operator applications $R_j$, solver invocations, test/attack executions, oracle escalations, roadmap and intervention decisions; transition $s_{k+1} = \mathcal{T}(s_k, a_k)$ *deterministic by construction* — a solver run, a pinned-seed attack, a logged observation update; reward = exactly recomputable quantities only: $\Delta V(\mathcal{P})$ under the pinned evaluator, certificate survival at higher-fidelity oracles, realized delivered-service terms on the scenario tree. This is what makes the program compatible with verifiable-reward training at scale: the environment never rolls dice, so a reward can always be re-derived from the state and checked. Exploration randomness, where used, lives in the *policy* and is logged; "new information from the world" (a fresh workload trace, a silicon measurement, an observed supply signal) enters only through explicit dataset-version transitions, which is also exactly where distribution shift becomes visible and attributable rather than being laundered through environment stochasticity.
+
+The robustness payoff is structural: because $\Xi_k$ and $\hat{W}$ are grown adversarially by the falsifier rather than sampled i.i.d., "robust" means *robust against the strongest counterexamples found so far, deterministically re-checkable forever* — a monotone guarantee no Monte Carlo sweep provides.
+
+## 21. The algorithm, in one place
 
 $$
 \boxed{
@@ -373,7 +395,7 @@ $$
 }
 $$
 
-## 21. Hypotheses and experimental design
+## 22. Hypotheses and experimental design
 
 | # | Hypothesis | Test |
 |---|---|---|
@@ -387,7 +409,7 @@ $$
 
 Minimal viable program, in order: (1) inner loop §§2–5 + §9 on open accelerator simulators, with the residual taxonomy live; (2) the chiplet problem of §11 end-to-end, including certificate revocation; (3) the operator library of §7 on that same testbed (hypothesis D); (4) the backtest of §19 on public technology histories; (5) the coupled loops of §17 in a simulated world with a ground-truth causal model (hypothesis G).
 
-## 22. Thesis
+## 23. Thesis
 
 The inner loop asks: *what is the right mathematical model of this engineered system?* The outer loop asks: *what is the right model — predictive and causal — of the technological world in which it must exist?* One scientific method runs at both levels: hypothesize structure, commit to a model, let reality attack it — simulators and silicon below, markets and roadmaps above — revise, and, where the causal model licenses it, act to change what reality permits. What is new here is not the ambition but the machinery: certificates that can be revoked, bounds that gate search, operators that make reformulation a move, prices that couple engineering to industry, and interventions distinguished from forecasts. The target is an AI that moves between equations and transistors, and between what is physically optimal and what can actually be built, at the level of rigor this document demands of its own claims: stated so that they can be refuted.
 
