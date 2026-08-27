@@ -8,11 +8,11 @@
 
 ## Abstract
 
-Existing AI-for-chip-design systems optimize inside a problem someone else formulated: the design variables, objectives, constraints, and simulators are given. This paper specifies, concretely, a system that *constructs* the formulation and then *searches formulation space* with an explicit operator set. The inner loop defines the design problem as a typed intermediate representation $\mathcal{P} = (W, Z, H, X, J, C, U, B)$ and gives falsifiable mathematics for each component: structure hypotheses that ship as machine-checkable certificates, communication lower bounds that gate search, a three-layer overlap/contention performance model, and a library of **reformulation operators** $R_1..R_{10}$ that make constraint transmutation a trainable move rather than an instruction. Bottlenecks are identified by **constraint value** — the marginal value of constraint relaxation, of which the convex dual is one efficient estimator — and simulators are split into three roles: training environment, hidden falsifier, and calibration oracle. The outer loop lifts the formulation to belief-state control over a partially observed technology and supply world: readiness as a hidden state estimated from noisy signals, deployment as optimal stopping, supply, power, and facilities as capacity constraints whose prices coordinate the two loops Benders-style, and frontier expansion as *causal intervention* on the world model, not forecasting. The objective is discounted **useful delivered service**, not peak chip performance. Structural hypotheses are drawn from an explicit, transferable **structural prior** over model space, and every stochastic element of both loops is *determinized* — uncertainty lives in explicit finite scenario sets and particle beliefs carried in the state, never in the transition — so the entire program is a deterministic optimization/RL problem with exact, machine-checkable rewards. Every model here is stated so that a simulator, a dataset, or a historical backtest can refute it; §22 pins each research hypothesis to an experiment.
+Existing AI-for-chip-design systems optimize inside a problem someone else formulated: the design variables, objectives, constraints, and simulators are given. This paper specifies, concretely, a system that *constructs* the formulation and then *searches formulation space* with an explicit, growing operator set. The inner loop defines the design problem as a typed intermediate representation $\mathcal{P} = (W, Z, H, X, J, C, U, B, S)$ — including abstraction boundaries $B$ and a semantic contract $S$ every reformulation must refine — and gives falsifiable mathematics for each component: compositional structure hypotheses drawn from a transferable structural prior and shipped as certificates with explicit validity domains; lower bounds with epistemic status that steer compute between improving the design and understanding the problem; a performance model grounded in resource-constrained scheduling; and a library of **reformulation operators** $R_1..R_{10}$, searched by lookahead tree search under value uncertainty and extended by operator induction from successful derivations. Bottlenecks are identified by **constraint value with uncertainty** — the marginal value of relaxation, of which the convex dual is one efficient estimator — and models are confronted with reality through three simulator roles (train, hidden-falsify, calibrate), an explicit model-discrepancy term separating inadequacy from noise, and information-maximizing **experiment selection**, not adversarial falsification alone. The outer loop lifts the formulation to belief-state control over a partially observed technology and supply world: readiness as a hidden state estimated from noisy signals, deployment as optimal stopping, supply, power, and facilities as capacity constraints whose prices coordinate the loops by column generation, and frontier expansion as *causal intervention* on the world model — with strategic counterparties flagged as the model's known frontier. The objective is discounted **useful delivered service**, with the valuation itself audited rather than assumed. Throughout, semantics remain stochastic while every experiment is deterministically replayable, so rewards are exactly recomputable. §22 pins each of eight research hypotheses to a controlled experiment.
 
 ## 0. Reading guide: the claims this program stands or falls on
 
-The program is not a manifesto; it is seven falsifiable hypotheses (experiments in §22):
+The program is not a manifesto; it is eight falsifiable hypotheses (experiments in §22):
 
 - **A.** Explicit mathematical models improve transfer across workload/technology shift.
 - **B.** Simulator ensembles with hidden falsifiers beat Monte Carlo of one simulator.
@@ -21,6 +21,9 @@ The program is not a manifesto; it is seven falsifiable hypotheses (experiments 
 - **E.** Modeling technology availability and supply changes designs materially.
 - **F.** Optionality-preserving roadmaps beat committed roadmaps under realized uncertainty.
 - **G.** Causal frontier-expansion actions improve long-horizon delivered-service value.
+- **H.** *Formulation transfer*: trained on some design domains, the system constructs useful formulations in a domain it has never seen.
+
+Compressed to its five scientific primitives, the program is: (1) **structure and bound certificates** — claims with validity domains, tests, and falsifiers, not beliefs; (2) **problem reformulation operators** — search over $(f, X, C, B)$, not only over $x$; (3) **constraint value → reformulation** — scarcity signals become scientific questions; (4) **model–experiment co-evolution** — train/falsify/calibrate simulator roles plus information-gain experiment selection; (5) **technical–industrial co-design** — prices, cuts, and counterexamples between the loops, with causal interventions on the future feasible set.
 
 ---
 
@@ -31,7 +34,7 @@ The program is not a manifesto; it is seven falsifiable hypotheses (experiments 
 A conventional optimizer solves $\min_{x \in \mathcal{X}} J(x)$ s.t. $g_i(x) \le 0$. The architect's real output is the problem itself, which we make an explicit, mutable data structure — a **Problem IR**:
 
 $$
-\mathcal{P} = (W, Z, H, X, J, C, U, B)
+\mathcal{P} = (W, Z, H, X, J, C, U, B, S)
 $$
 
 | Symbol | Meaning | Concrete instance (running example: LLM serving) |
@@ -44,8 +47,9 @@ $$
 | $C$ | constraints | typed: logical, physical, resource, probabilistic, conventional (§6) |
 | $U$ | uncertainty | workload drift, process variation, simulator model-form error |
 | $B$ | abstraction boundaries | what is fixed parameter vs. design variable; HW/compiler/runtime responsibility split |
+| $S$ | semantic contract | the task specification the design must satisfy: served model family, quality/accuracy floors, correctness obligations |
 
-$B$ is what makes reformulation representable: moving an item across a boundary of $B$ is a formal edit to $\mathcal{P}$ (§7). The AI's competence is measured on $\mathcal{P}$-construction quality, not only on $x^*$ quality; §10 gives the metric.
+$B$ is what makes reformulation representable: moving an item across a boundary of $B$ is a formal edit to $\mathcal{P}$ (§7). $S$ is what keeps reformulation honest: it is the fixed point defining when two formulations still solve *the same problem* — every operator in §7 must refine it. The AI's competence is measured on $\mathcal{P}$-construction quality, not only on $x^*$ quality; §10 gives the metric.
 
 ## 2. Workload representation with numbers attached
 
@@ -62,7 +66,13 @@ A representative current accelerator has peak $\pi \approx 4.5\times10^{15}$ FLO
 
 ## 3. Structure discovery: each hypothesis is a test, not a sentence
 
-Every structural hypothesis $H$ ships as a triple $(H, \text{statistic}, \text{refutation search})$:
+Every structural hypothesis $H$ ships as a triple $(H, \text{statistic}, \text{refutation search})$. Hypotheses are not a flat menu but terms of a **compositional grammar**,
+
+$$
+H ::= \text{Sparse}(X) \mid \text{LowRank}(X, r) \mid \text{Separable}(f, \Pi) \mid \text{Monotone}(f, x_i) \mid \text{Invariant}(f, G) \mid H \land H \mid H \circ H,
+$$
+
+closed under conjunction and composition and stratified by scope (global → per-regime → local), so the system can express what real modeling actually finds — e.g. *sparse + block-low-rank + approximately separable, monotone in batch* — and structure discovery becomes symbolic model search rather than feature classification. The atomic tests:
 
 | Structure | Formal claim | Test statistic | Refutation search |
 |---|---|---|---|
@@ -76,7 +86,13 @@ Every structural hypothesis $H$ ships as a triple $(H, \text{statistic}, \text{r
 
 **Where hypotheses come from: the structural prior.** $H$ is not proposed from nothing. The system carries an explicit prior $\pi_0(H \mid \phi(W, Z))$ over the hypothesis grammar above, conditioned on cheap workload features $\phi$ (graph statistics, reuse-distance profiles, operator mix) and seeded from domain knowledge that is itself structural: physics supplies conservation and locality (§6's "law" constraints induce flow-balance and distance-decay hypotheses); linear algebra supplies low-rank and separability candidates for tensor programs; regularity of the computation graph supplies invariance candidates. The prior is *transferable state, not folklore*: every certificate outcome (survived/revoked, on which workload family) is logged, and $\pi_0$ is re-fit across problems — hierarchical Bayes or simple frequency reweighting at first — so that hypothesis proposal itself improves with experience. This is the precise sense in which the system accumulates domain knowledge: as a calibrated prior over *which mathematical structures tend to survive falsification in which regimes*, rather than as text.
 
-A surviving hypothesis yields a **Structure Certificate**: a machine-checkable record `{claim, domain of validity, statistic, threshold, counterexample budget spent, expiry condition}`. Certificates are cited by downstream models; when one is revoked (a counterexample is found), every model citing it is flagged for revision (§9). The training loop this induces — *conjecture → operational definition → test → counterexample search* — is the core primitive of the whole program.
+A hypothesis that survives its tests yields a **Structure Certificate**
+
+$$
+C_H = (H,\ \mathcal{D}_H,\ \epsilon_H,\ p_H,\ T_H,\ B_H)
+$$
+
+— the claim, its **validity domain**, tolerated approximation error, confidence, the tests run, and the counterexample budget spent. Certificates are cited by downstream models, and falsification acts on them with four graded outcomes, not two: a survived attack **strengthens** ($p_H \uparrow$); a marginal violation **weakens** ($\epsilon_H \uparrow$); a counterexample outside the core regime **localizes** ($\mathcal{D}_H \to \mathcal{D}_H'$, shrinking the domain — the usual scientific outcome: attention low-rankness may survive on long-context retrieval and die on code generation); only a violation inside the claimed domain at the claimed tolerance **revokes** ($p_H \to 0$), flagging every citing model for revision (§9). The training loop this induces — *conjecture → operational definition → test → refine domain or revoke* — is the core primitive of the whole program.
 
 **Decision relevance.** Structure is scored by its effect on decisions, not its truth alone:
 
@@ -102,7 +118,7 @@ attained (up to constants) by $\sqrt{M}$-tiling. Consequences the AI must derive
 
 The bound's role is triage: it separates *"a schedule can fix this"* from *"only an algorithmic or architectural change can fix this."* An agent that spends $10^4$ rollouts trying to tile away an $\Omega(sd)$ cost has failed a test the bound answers in closed form.
 
-Bounds therefore ship as first-class artifacts parallel to Structure Certificates — a **Bound Certificate**: `{quantity, bound, proof technique or citation, assumptions, gap to best-known-achievable}`. Rule: **no search is launched on a cost that carries neither a bound nor an explicit "no known bound" declaration.** If a certified bound and a surrogate disagree by more than the surrogate's certified error, the surrogate is wrong.
+Bounds therefore ship as first-class artifacts parallel to Structure Certificates — a **Bound Certificate**: `{quantity, bound, status, proof technique or citation, assumptions, gap to best-known-achievable}`, with epistemic status $\in$ {exact, proven, empirical, conjectured, unknown}. The rule is **bound-aware search**, not search-forbidden-without-proof: every cost enters search carrying its certificate, and status `unknown` opens a genuine meta-decision — spend compute on **Search Design** (improve $x$ under current understanding) or on **Search Bound** (understand the problem: derive, or conjecture-and-test, a bound). The most interesting architectures live precisely where no bound is known, and *discovering* one is itself a scored artifact; allocating between the two searches is a value-of-information problem, priced by how often certified bounds have redirected search away from provably futile regions — as the $\Omega(sd)$ example above does in closed form. If a certified bound and a surrogate disagree by more than the surrogate's certified error, the surrogate is wrong.
 
 ## 5. The performance model: bounds, overlap, and contention
 
@@ -113,18 +129,20 @@ T_{\text{LB}} = \max_i T_i \qquad\text{(perfect overlap: the roofline bound [3])
 T_{\text{UB}} = \sum_i T_i \qquad\text{(fully serialized)}.
 $$
 
-The first model of an actual system interpolates with an overlap matrix and a contention term:
+For two resources an overlap coefficient interpolates exactly: $T = T_1 + T_2 - \alpha \min(T_1, T_2)$, $\alpha \in [0,1]$. For $n \ge 3$ resources, pairwise corrections double-count — three unit-time phases with all $\alpha_{ij} = 1$ would give $T = 0 < T_{\text{LB}}$ — so the general model is not a closed-form correction but a small **resource-constrained schedule**, which is truer to this paper's own doctrine: find the structure, don't fit a convenient formula. Phases $i$ with durations $d_i$ and start times $s_i$, precedence from the dataflow order, and per-resource capacities:
 
 $$
-T \;=\; \sum_i T_i \;-\; \sum_{i<j} \alpha_{ij}\, \min(T_i, T_j) \;+\; Q_{\text{cont}},
-\qquad \alpha_{ij} \in [0,1],
+T = \min\; \max_i (s_i + d_i)
+\quad \text{s.t.} \quad
+s_j \ge s_i + d_i \;\; \forall (i \to j), \qquad
+\sum_{i:\, t \in [s_i,\, s_i + d_i]} r_{ik} \le C_k \;\; \forall k, t,
 $$
 
-where $\alpha_{ij}$ is the fraction of the shorter phase hidden under the longer (all $\alpha = 1$, $Q_{\text{cont}}=0$ recovers $T_{\text{LB}}$ for two resources; all $\alpha = 0$ recovers $T_{\text{UB}}$), and $Q_{\text{cont}} \ge 0$ captures interference *within* a shared resource — e.g. NoC or HBM-channel queueing, first modeled M/G/1: $\mathbb{E}[T_q] = \frac{\rho}{1-\rho}\cdot\frac{\bar{S}(1+C_v^2)}{2}$.
+solved or bounded by a small LP/flow surrogate. Overlap, serialization, and contention now *emerge* from precedence and capacity rather than being pasted on as corrections; queueing at a contended resource enters as an effective capacity or an M/G/1 delay term $\mathbb{E}[T_q] = \frac{\rho}{1-\rho}\cdot\frac{\bar{S}(1+C_v^2)}{2}$; and $T_{\text{LB}}, T_{\text{UB}}$ remain exact envelopes of every feasible schedule.
 
 Workloads are modeled as a regime mixture $W = \bigcup_k W_k$ (compute-, memory-, network-, sync-bound), and the design target is $\min_x \mathbb{E}_{w \sim P(W)} J(x, w)$ — never a single benchmark point.
 
-The structure makes residuals diagnostic rather than merely wrong: measured $T$ near $T_{\text{LB}}$ certifies the overlap machinery; drift toward $T_{\text{UB}}$ localizes a serialization ($\hat{\alpha}_{ij} \to 0$ names the pair); $T > T_{\text{UB}}$, or per-resource times inflated above their isolated values, is contention or resource coupling and forces a $Q_{\text{cont}}$ upgrade. A bare $\max$ model can only report "wrong"; this one reports *where*.
+The structure makes residuals diagnostic rather than merely wrong: measured $T$ near $T_{\text{LB}}$ certifies the overlap machinery; drift toward $T_{\text{UB}}$ localizes a serialization — a missing overlap or a false precedence edge in the schedule model; $T > T_{\text{UB}}$, or per-resource times inflated above their isolated values, is contention or resource coupling and forces a capacity/queueing upgrade. A bare $\max$ model can only report "wrong"; this one reports *where*.
 
 ## 6. Constraints are typed; only some are laws
 
@@ -157,13 +175,17 @@ This is the program's central algorithmic object. AlphaEvolve-style systems [17]
 | $R_9$ | scarcity → redundancy/substitution | replace a single resource by a qualified set with a selection variable | multi-vendor memory, spare rows |
 | $R_{10}$ | algorithm family change | replace the computation itself, subject to task-level quality constraints | attention → sparse/linear attention |
 
-**The search.** A reformulation policy proposes edits conditioned on the current IR, the binding constraint, and evidence:
+**The semantic contract.** Operators like $R_7$ and $R_{10}$ change the computation itself, so the IR's contract $S$ (§1) is what blocks the cheapest hack available to a formulation-editing agent — quietly changing the task. Every operator application must be a refinement: $\mathcal{P}' \models S$ exactly, or approximately, $d(\text{Behavior}(\mathcal{P}'), S) \le \epsilon_S$, with the behavior metric and tolerance declared in $S$ itself. A reformulation that cannot exhibit its refinement witness is rejected regardless of objective value.
+
+**The search.** Reformulation is a **tree search over formulations**, not greedy hill climbing: an operator application can lower value at depth one and open a dominant design space at depth two. Nodes are formulations, edges are operator applications proposed by a policy $R_\theta(\mathcal{P}, C_i, \text{evidence})$ — *evidence* = the constraint values of §8, residuals of §9, and certificates in force — and expansion is guided by a *predicted* value $\hat{V}(\mathcal{P})$ with uncertainty, because the true $V(\mathcal{P})$ of §10 requires the expensive downstream pipeline and is measured only at selected leaves. Selection uses $\Pr[V(\mathcal{P}') > V(\mathcal{P}) \mid \mathcal{D}]$ or expected improvement, as in Bayesian optimization; MCTS and population variants are natural here [16, 17]. Operator applications are logged as derivation trees, so a discovered architecture carries its formulation lineage — the training data for both $\hat{V}$ and $R_\theta$.
+
+**Operator induction.** A fixed library invites the objection that "architectural creativity" is just selection among ten human-written templates. The program is therefore two-phase. *Phase I (fixed grammar):* establish that search over $R_1..R_{10}$ beats parameter search inside a fixed $\mathcal{P}$ — hypothesis D (§22). *Phase II (induction):* mine recurring transformation patterns from successful derivation trees — e.g. many derivations independently composing *global dynamic resource → partitioned static resource + offline coordination* — and promote them to new operators with induced preconditions:
 
 $$
-\mathcal{P}_{k+1} = R_{\theta}(\mathcal{P}_k, C_i, \text{evidence}), \qquad \text{accept if } V(\mathcal{P}_{k+1}) > V(\mathcal{P}_k),
+\mathcal{R}_{t+1} = \mathcal{R}_t \cup \operatorname{Induce}(\text{successful derivations}),
 $$
 
-where $V(\mathcal{P})$ is the formulation-quality metric of §10 (realized downstream design value net of solve and verification cost) and *evidence* = the constraint values of §8, residuals of §9, and certificates in force. Operator applications are logged as a derivation tree, so a discovered architecture carries its formulation lineage — which is precisely the training data for $R_\theta$. Hypothesis D (§22) tests whether learning over this operator library beats parameter search inside a fixed $\mathcal{P}$.
+so the operator library itself evolves. Induced operators enter on probation: they must earn certificate-grade evidence of their applicability conditions before the proposal policy may weight them.
 
 ## 8. Constraint value: the invention signal, generalized
 
@@ -175,7 +197,7 @@ $$
 
 the finite-difference change in achievable objective when constraint $i$'s budget moves. This is the primitive; the convex dual is its cheapest estimator, not its definition. In convex problems $MV_i \to \lambda_i = -\partial V^*/\partial b_i$ exactly. In the mixed-integer, topology-changing, simulator-defined problems that dominate architecture, classical duals may not exist, may be non-unique, or may carry a duality gap — so the system maintains an estimator ladder, ordered by cost: (i) exact duals where convexity is certified (§3); (ii) LP-relaxation duals and reduced costs for MIPs; (iii) surrogate-gradient estimates $\partial \hat{V}/\partial b_i$ from a fitted model; (iv) ground truth by perturb-and-re-solve. Estimates from cheap rungs are periodically audited against rung (iv), like any other model in §9.
 
-When $MV_i \gg 0$, the system does not just report $x^*$; it opens a **reformulation episode** on constraint $i$: (a) why does $g_i$ exist — physics or convention (§6)? (b) which operators $R_j$ have their precondition satisfied on it? (c) is the value of relaxation, $MV_i \cdot \Delta b_i$, worth the operator's cost in complexity and verification?
+Every estimate carries uncertainty: the system maintains $(\widehat{MV}_i, \sigma_i)$, and the trigger for invention is a confidence statement, not a noisy point estimate — open a **reformulation episode** on constraint $i$ when $\Pr[MV_i > \tau \mid \mathcal{D}]$ is high (equivalently, when the lower confidence bound clears $\tau$), and rank competing episodes by expected value of reformulation per unit exploration cost. A large $\widehat{MV}_i$ with large $\sigma_i$ is first an *experiment* (tighten the estimate on a cheaper-rung audit), not an expensive episode. The episode itself asks: (a) why does $g_i$ exist — physics or convention (§6)? (b) which operators $R_j$ have their precondition satisfied on it? (c) is the value of relaxation, $MV_i \cdot \Delta b_i$, worth the operator's cost in complexity and verification?
 
 Concrete instance: at small-batch decode the binding constraint is HBM bandwidth, with $MV_{\beta}$ orders of magnitude above $MV_\pi \approx 0$. The mechanical response is "buy more bandwidth"; the operator responses are $R_7$ (quantize weights/KV — cuts $Q$), $R_4$/speculative decoding (raises effective batch, hence intensity [14]), and $R_8$ + near-memory compute (moves work across the constraint boundary). A trained system must produce all three *from the signal*, not from a menu. The full loop:
 
@@ -200,7 +222,7 @@ The model predicts $\hat{y} = M(x)$; oracle $k$ returns $y_k = S_k(x)$; the obje
 | Residual signature | Diagnosis | Action |
 |---|---|---|
 | bias growing with utilization $\rho$ | missing contention state | add $Q_{\text{cont}}$ term (§5) |
-| drift from $T_{\text{LB}}$ toward $T_{\text{UB}}$ | serialization; some $\alpha_{ij} \approx 0$ | fix overlap machinery or model |
+| drift from $T_{\text{LB}}$ toward $T_{\text{UB}}$ | serialization: missing overlap or false precedence in the schedule model | fix the overlap machinery, or the precedence/capacity constraints |
 | $T > T_{\text{UB}}$ or inflated isolated $T_i$ | interference / resource coupling | model the shared resource explicitly |
 | bias growing with reuse distance | wrong locality model | re-fit reuse distribution |
 | heteroscedastic noise | unmodeled nondeterminism | model it, or *remove* it ($R_5$; legibility, §10) |
@@ -215,9 +237,27 @@ $$
 
 with the falsifier drawing from $\mathcal{S}_{\text{fals}}$ across model families — distinguishing workload, parameter, model-form, and implementation uncertainty. A large Monte Carlo sweep of one simulator is not epistemic robustness. Cross-level feedback is mandatory: a synthesis-reported $f_{\max}$ miss updates the architecture-level timing prior; a physical-design wiring blowup updates the communication cost model upstream.
 
+**Model discrepancy is not noise.** Observations decompose as $y(x) = M(x) + \delta(x) + \epsilon$ [22]: mechanistic model, structured discrepancy, measurement noise. A small, structureless $\delta$ certifies $M$ at its current fidelity; a $\delta$ with systematic dependence on identifiable variables is a bug report against $M$, and the taxonomy above names the fix. Keeping $\delta$ explicit protects against both failure modes: complexifying $M$ to chase noise, and averaging away real inadequacy as if it were noise.
+
+**Experiment selection: information gain, not only falsification.** The falsifier finds worst cases; a scientist also designs the experiment that best *discriminates competing models*. When the archive $\mathcal{M}$ holds rivals $M_1, M_2$ — say a bandwidth-saturation memory model against a bank-conflict-dominated one — select
+
+$$
+e^* = \arg\max_e\; I(M;\, Y_e)
+$$
+
+under the oracle budget: the Bayesian-optimal experiment [23]. Often one specially constructed workload separates the rival predictions more than any number of production traces. This **Experiment Selection Operator** stands beside the reformulation operators of §7 as the program's second first-class move: certificates, $\hat{V}$, and $\widehat{MV}$ all sharpen fastest per oracle dollar when queries are chosen for information, not convenience.
+
+**Abstraction error budget.** Each level — workload IR, architecture model, RTL, physical design — introduces approximation $\epsilon_\ell$, composing into a decision-relevant budget $\epsilon_{\text{decision}} \le \sum_\ell \epsilon_\ell$ (or a task-relevant divergence between reality and the model stack). Oracle spending is then itself an allocation problem: minimize simulation cost subject to $\epsilon_{\text{decision}} \le \epsilon$ — spend the expensive rungs where the *binding* abstraction error lives. This is the quantitative form of "simulators are experimental instruments."
+
 ## 10. Legibility as an objective; formulation quality as a metric
 
-Two designs with equal PPA can differ by orders of magnitude in predictability. Define $C_{\text{model}}(x)$ = (hidden dynamic state count, nondeterminism sources, calibration sample complexity, surrogate error at fixed budget) and optimize $J = J_{\text{PPA}} + \lambda\, C_{\text{model}}$. A legible design is cheaper to optimize, verify, compile to, and *redesign by AI in the next iteration* — a bet on compounding returns, and the objective that makes $R_5$ profitable.
+Two designs with equal PPA can differ by orders of magnitude in predictability. Define legibility as the complexity of the *simplest adequate predictive model* — an MDL-style quantity:
+
+$$
+C_{\text{legible}}(x; \epsilon) = \min_{M} \left\{ C(M) \;:\; \mathbb{E}\big[\ell(M(x), Y(x))\big] \le \epsilon \right\},
+$$
+
+the minimum model complexity required to predict the architecture's behavior to tolerance $\epsilon$. A legible architecture is one whose behavior admits a compact predictive model. In practice $C_{\text{legible}}$ is estimated through a proxy vector — hidden dynamic state count, nondeterminism sources, calibration sample complexity, surrogate error at fixed budget — reported as separate terms, since their units differ, and the design objective is $J = J_{\text{PPA}} + \lambda\, \hat{C}_{\text{legible}}$. A legible design is cheaper to optimize, verify, compile to, and *redesign by AI in the next iteration* — a bet on compounding returns, and the objective that makes $R_5$ profitable.
 
 **Formulation quality** $V(\mathcal{P})$ (used by §7's acceptance test): given a fixed solver budget, score (i) regret of $x^*_{\mathcal{P}}$ under the *true* downstream evaluator ($\mathcal{S}_{\text{calib}}$), (ii) certificate survival rate at higher-fidelity oracles, (iii) solve + verification cost. This makes "did it pick the right problem" measurable.
 
@@ -282,7 +322,7 @@ U_t = \int_w v(w, t)\; y(w; x_t)\; dP_t(w),
 \max_\pi\; \mathbb{E}\left[ \sum_{t=0}^{T} \beta^t\, U_t \right],
 $$
 
-where $P_t$ is the workload demand distribution, $v(w,t)$ the value of serving request class $w$, and $y(w; x_t)$ the fraction served within SLA — a function of throughput, latency, availability, and model quality on the deployed fleet $x_t$. Deployed volume × per-system performance ($N_t P_t$) is the first-order surrogate, but the service form is what prevents pathologies: a 10× FP8-throughput system that misses latency SLAs or serves no demanded workload scores what it should — nothing. Two consequences survive either form: a system with $0.8\times$ performance at $10\times$ volume dominates, and a 12-month-earlier system beats a superior later one whenever the discounted ramp says so. **Best chip $\ne$ best compute system.**
+where $P_t$ is the workload demand distribution, $v(w,t)$ the value of serving request class $w$, and $y(w; x_t)$ the fraction served within SLA — a function of throughput, latency, availability, and model quality on the deployed fleet $x_t$. The valuation must not become an unaudited free parameter — chosen freely, $v$ can rationalize any roadmap. It is split into $v_{\text{exogenous}}$ (contracted prices, committed demand) and $v_{\text{estimated}}$ (demand and price forecasts), the latter carrying uncertainty that propagates into $U$; and the underlying performance vector (served requests, tail latency, availability, energy, revenue) stays multi-objective as long as possible — scalarization is a logged, revisable decision subject to the same audit as any other model, because the objective is itself part of the formulation. Deployed volume × per-system performance ($N_t P_t$) is the first-order surrogate, but the service form is what prevents pathologies: a 10× FP8-throughput system that misses latency SLAs or serves no demanded workload scores what it should — nothing. Two consequences survive either form: a system with $0.8\times$ performance at $10\times$ volume dominates, and a 12-month-earlier system beats a superior later one whenever the discounted ramp says so. **Best chip $\ne$ best compute system.**
 
 ## 15. Roadmapping as stochastic control; deployment as stopping
 
@@ -320,7 +360,7 @@ $$
 \min_x\; J_{\text{PPA}}(x) + \lambda^\top d(x)
 $$
 
-and returns new candidates — Lagrangian/Benders-style decomposition of the joint problem [20], with three message types flowing between loops: **prices** (scarcity → design incentives), **cuts** (roadmap infeasibilities that prune the menu), and **counterexamples** (deployed-world residuals that revoke inner-loop certificates). Signature behavior: $\lambda_{\text{HBM}} \gg 0$ → the inner loop re-derives the memory hierarchy (more SRAM, compression, recomputation — §2's operators, now economically motivated); $\lambda_{\text{power}} \gg 0$ → it attacks movement and voltage. Bottleneck economics, not taste, steers architecture search:
+and returns new candidates. The coordination is *Benders/Lagrangian-inspired*, stated with the care the inner loop's structure demands: where the coupling is convex, classical optimality and feasibility cuts $\theta \ge \alpha + \beta^\top y$ apply [20]; where inner decisions are discrete or simulator-defined, logic-based Benders and no-good cuts take their place; and the cleanest reading of the menu itself is **column generation** — architectures are columns, the outer master problem prices resources, and the inner loop is the pricing subproblem, generating a new column exactly when $\min_x J_{\text{PPA}}(x) + \lambda^\top d(x)$ finds negative reduced cost. Three message types flow between the loops: **prices** (scarcity → design incentives), **cuts** (roadmap infeasibilities that prune the menu), and **counterexamples** (deployed-world residuals that revoke inner-loop certificates). Signature behavior: $\lambda_{\text{HBM}} \gg 0$ → the inner loop re-derives the memory hierarchy (more SRAM, compression, recomputation — §2's operators, now economically motivated); $\lambda_{\text{power}} \gg 0$ → it attacks movement and voltage. Bottleneck economics, not taste, steers architecture search:
 
 $$
 \boxed{\ \text{industrial scarcity} \;\to\; \text{architecture incentives}.\ }
@@ -337,7 +377,9 @@ The outer loop may act so that tomorrow's feasible set is larger: $\mathcal{X}_{
 | interface standardization | bespoke dependency edge → market; collapses $\lambda_j$ | price path under entry model |
 | co-investment | raises a transition intensity in $\Pr[z_{t+1} \mid z_t, u_t]$ | option value on earlier $\tau_j$ |
 
-Identification comes from historical *interventions* (past commitments, past standards) and deliberate small experiments, not from passive curves; where the causal effect is unidentified, the system must report that, and the roadmap must not lean on it. The composed primitive of the whole program:
+Identification comes from historical *interventions* (past commitments, past standards) and deliberate small experiments, not from passive curves; where the causal effect is unidentified, the system must report that, and the roadmap must not lean on it.
+
+One limitation is stated rather than hidden: suppliers, competitors, hyperscalers, utilities, and governments are themselves optimizing agents, so the world is strictly a partially observable stochastic *game*, and a volume commitment's effect is an equilibrium response $v^*(u) = \arg\max_v U_{\text{supplier}}(v; u)$ — shaped by the supplier's opportunity costs, rival demand, and capex constraints — not a fixed causal curve. The SCM is the first approximation; where a counterparty's strategic response materially changes an action's value, the model must be upgraded to an endogenous-response (bilevel or equilibrium) form, and until then the Roadmap Certificate must flag those valuations as game-theoretically naive. The composed primitive of the whole program:
 
 $$
 \text{optimize} \to \text{measure constraint value} \to \text{apply reformulation operator} \to \text{intervene on the frontier}.
@@ -351,25 +393,29 @@ Three machine-checkable artifacts make the outer loop auditable:
 2. **Roadmap Certificate**: nominal path $x_0 \to x_1 \to x_2$, fallback branches, trigger conditions on *beliefs* ("if $b_t(\text{HBM-next at volume by Q3}) < 0.4$, switch to branch B"), frontier-expansion actions with their causal valuation, and preserved options with computed option value.
 3. **Calibration record**: at historical date $t$, hide the future; have the system form beliefs over $(\tau_j, Q_j, C_j)$ and design the $N$-year roadmap; score belief calibration (CRPS) and roadmap regret against the realized world. The DRAM, NAND, node-cadence, and interconnect histories are the training set; realized past interventions are the identification data for §18.
 
-## 20. Determinization: the whole program as a deterministic optimization/RL problem
+## 20. Stochastic semantics, deterministic replay
 
-Robustness and trainability point at the same requirement: **no randomness in the transition function**. Every stochastic element of both loops is reduced to a deterministic counterpart in which uncertainty is an explicit, finite, versioned object carried in the *state* — so that any run is exactly reproducible, any reward is exactly recomputable, and credit assignment is never confounded by environment noise.
+Robustness and trainability must be won without a claim the program cannot honestly make: that the world is deterministic. The semantics stay stochastic — transitions are $s_{t+1} \sim P(\cdot \mid s_t, a_t)$, expectations are expectations, posteriors are posteriors. What is engineered is **replay**: every episode records its complete draw — seeds, scenario ids, oracle versions, dataset versions — so that
 
-The deterministic reductions, element by element:
+$$
+\text{same recorded experiment} \;\Rightarrow\; \text{exactly reproducible outcome},
+$$
 
-| Stochastic object | Deterministic counterpart |
+and every reward is exactly recomputable as $R(\text{trajectory}, \text{recorded environment})$. That — not a deterministic world — is what verifiable-reward training and clean credit assignment require.
+
+The finite objects below are accordingly *estimators with quantified error*, never the quantities themselves: a sample average $\frac{1}{N}\sum_i f(x, \xi_i)$ estimates $\mathbb{E}_\xi[f(x,\xi)]$ with known convergence [10]; a particle set approximates the posterior $b_t$; a scenario tree approximates the stochastic program — and each approximation gap is an entry in the abstraction error budget of §9. Every instrument carries a version, so refreshing a scenario set or re-drawing particles is an explicit, logged state change: exactly where distribution shift becomes visible and attributable instead of being laundered through unlogged environment randomness.
+
+| Stochastic object | Replayable finite instrument |
 |---|---|
-| workload distribution $P(W)$ | a pinned, versioned scenario set $\hat{W} = \{w_1..w_N\}$ with weights (sample-average approximation [10]); refreshing $\hat{W}$ is an explicit, logged state change, not sampling noise |
-| chance constraint $\Pr[g(x,\xi) > 0] \le \epsilon$ | scenario counterpart over an enumerated $\Xi_k$: at most $\lfloor \epsilon N \rfloor$ violations on the pinned set |
-| robust constraint $\forall \xi \in \Xi$ | finite $\Xi_k$ grown by the falsifier's cutting-plane loop (§9) — the counterexample archive $\mathcal{C}$ *is* the uncertainty set, and each $\arg\max$ attack is itself a deterministic search with a pinned seed |
-| simulator noise / nondeterminism | pinned seeds and versioned oracle builds; residual nondeterminism is treated as a model defect (§9's taxonomy) and a legibility cost (§10), to be modeled or removed ($R_5$) — never averaged over silently |
-| belief $b_t$ over technology state $z_t$ (§13) | a finite particle set $\{(z^{(i)}, p^{(i)})\}$ carried in the state; the Bayes update on a logged observation is a deterministic map |
-| multi-stage stochastic roadmap (§15) | the deterministic equivalent over a finite scenario tree with nonanticipativity constraints [10] — a single large deterministic program |
+| workload distribution $P(W)$ | pinned, versioned scenario set $\hat{W} = \{w_1..w_N\}$ — a sample-average estimator of the expectation [10], not the expectation |
+| chance constraint $\Pr[g(x,\xi) > 0] \le \epsilon$ | scenario counterpart on the pinned set (at most $\lfloor \epsilon N \rfloor$ violations), with scenario-approximation guarantees quoted alongside |
+| robust constraint $\forall \xi \in \Xi$ | finite $\Xi_k$ grown by the falsifier's cutting-plane loop (§9) — the counterexample archive $\mathcal{C}$ *is* the working uncertainty set; each attack runs under a recorded seed |
+| simulator nondeterminism | pinned seeds and versioned oracle builds; *irreproducible* residual variance is a model defect (§9) and a legibility cost (§10), to be modeled or removed ($R_5$) — never silently averaged |
+| belief $b_t$ over technology state (§13) | particle filter over recorded observations: the update is a replayable map given the logged $o_t$, approximating — not equaling — the posterior |
+| multi-stage roadmap (§15) | deterministic equivalent over a versioned scenario tree with nonanticipativity [10] |
 | risk functionals $\text{CVaR}, \max$-regret | exact finite formulas over the tree's leaves (CVaR is an LP over scenarios [11]) |
 
-The training problem then closes into a **deterministic MDP**: state $s_k = (\mathcal{P}_k,\ \text{certificates},\ \mathcal{D}, \mathcal{M}, \mathcal{C},\ \hat{W}, \Xi_k,\ b_t)$; actions = operator applications $R_j$, solver invocations, test/attack executions, oracle escalations, roadmap and intervention decisions; transition $s_{k+1} = \mathcal{T}(s_k, a_k)$ *deterministic by construction* — a solver run, a pinned-seed attack, a logged observation update; reward = exactly recomputable quantities only: $\Delta V(\mathcal{P})$ under the pinned evaluator, certificate survival at higher-fidelity oracles, realized delivered-service terms on the scenario tree. This is what makes the program compatible with verifiable-reward training at scale: the environment never rolls dice, so a reward can always be re-derived from the state and checked. Exploration randomness, where used, lives in the *policy* and is logged; "new information from the world" (a fresh workload trace, a silicon measurement, an observed supply signal) enters only through explicit dataset-version transitions, which is also exactly where distribution shift becomes visible and attributable rather than being laundered through environment stochasticity.
-
-The robustness payoff is structural: because $\Xi_k$ and $\hat{W}$ are grown adversarially by the falsifier rather than sampled i.i.d., "robust" means *robust against the strongest counterexamples found so far, deterministically re-checkable forever* — a monotone guarantee no Monte Carlo sweep provides.
+The training problem is then an MDP whose *recorded episodes* are deterministic functions of (state, action, logged draw): exploration randomness lives in the policy and is logged; fresh information from the world — a new workload trace, a silicon measurement, a supply signal — enters only through versioned dataset transitions. The robustness payoff, honestly stated: because $\Xi_k$ and $\hat{W}$ are grown adversarially rather than sampled i.i.d., "robust" means *robust against the strongest recorded counterexamples, re-checkable forever* — a monotone guarantee about the archive, complementing (not replacing) the statistical guarantees of the estimators above.
 
 ## 21. The algorithm, in one place
 
@@ -378,8 +424,8 @@ $$
 \begin{array}{c}
 \textbf{Inner loop (per design iteration)}\\[2pt]
 \text{construct Problem IR } \mathcal{P} \to \text{discover + certify structure and bounds} \to \text{solve} \\
-\to\ \text{measure constraint values } MV \to \text{apply reformulation operator } R_\theta \to \text{new } \mathcal{P} \\
-\to\ \text{predict} \to \text{hidden falsification} \to \text{revise models and certificates}
+\to\ \text{estimate constraint values } (\widehat{MV}, \sigma) \to \text{tree-search reformulations under } \hat{V} \to \text{new } \mathcal{P} \\
+\to\ \text{predict} \to \text{select experiments (falsify + discriminate)} \to \text{refine domains, revise models} \to \text{induce operators}
 \end{array}
 }
 $$
@@ -399,19 +445,20 @@ $$
 
 | # | Hypothesis | Test |
 |---|---|---|
-| A | Explicit models transfer: structure-first agents beat fixed-environment RL after workload/technology shift | train on workload family 1, evaluate zero/few-shot on family 2; metric: regret vs oracle |
-| B | Hidden-falsifier ensembles beat Monte Carlo of one simulator | design under §9's role split vs single-sim; evaluate on held-out simulator family |
-| C | Constraint-value analysis finds bottleneck-breaking designs that reward search misses | count accepted designs outside the initial $\mathcal{X}$ that dominate; ablate the $MV$ signal |
-| D | Reformulation-operator training increases design novelty at equal quality | train $R_\theta$ on derivation trees vs parameter search in fixed $\mathcal{P}$; novelty = distance from archive under a fixed design embedding |
+| A | Explicit models transfer: structure-first agents beat fixed-environment RL after workload/technology shift | train on workload family 1, evaluate zero/few-shot on family 2 at **equal total compute and equal oracle-query budget** (else structure-first wins unfairly by spending more on solvers and high-fidelity queries); metric: regret vs oracle |
+| B | Hidden-falsifier ensembles beat Monte Carlo of one simulator | design under §9's role split vs single-sim; the held-out family must be **independently constructed** (different codebase, different modeling idiom) — a re-parameterized copy tests nothing about model-form generalization |
+| C | Constraint-value analysis finds bottleneck-breaking designs that reward search misses | four arms: random reformulation; unguided proposal (no $MV$ signal); $\widehat{MV}$-guided; oracle-$MV$-guided — separating the value of the signal from the value of the operator library; metric: dominating designs outside the initial $\mathcal{X}$ |
+| D | Reformulation-operator training increases design novelty at equal quality | train $R_\theta$ on derivation trees vs parameter search in fixed $\mathcal{P}$; novelty **conditioned on quality**: archive distance counted only for designs with $J(x) \le J_{\text{baseline}} - \epsilon$; headline metric: Pareto-improving designs unreachable in the initial $\mathcal{X}_0$ |
 | E | Supply/availability modeling changes designs materially | compare $x^*$ with and without §16 constraints; measure decision divergence, not just objective |
 | F | Optionality-preserving roadmaps win under realized uncertainty | backtest (§19.3): regret distribution of adaptive vs committed roadmaps |
 | G | Causal frontier-expansion improves long-horizon delivered value | simulated world with a ground-truth SCM; compare policies with the causal model ablated to observational forecasting |
+| H | **Formulation transfer**: the system constructs useful formulations in an unseen domain | train on chiplet partitioning, memory hierarchy, and scheduling; test on a domain never seen — NoC topology, power delivery, or cooling — requiring discovery of $Z, H, C, B$ and operator applications, not just optimization; compare learned vs fixed formulation on downstream regret, oracle-query count, and certificate survival |
 
-Minimal viable program, in order: (1) inner loop §§2–5 + §9 on open accelerator simulators, with the residual taxonomy live; (2) the chiplet problem of §11 end-to-end, including certificate revocation; (3) the operator library of §7 on that same testbed (hypothesis D); (4) the backtest of §19 on public technology histories; (5) the coupled loops of §17 in a simulated world with a ground-truth causal model (hypothesis G).
+Minimal viable program, in order: (1) inner loop §§2–5 + §9 on open accelerator simulators, with the residual taxonomy live; (2) the chiplet problem of §11 end-to-end, including certificate localization and revocation; (3) the operator library of §7 on that same testbed (hypothesis D); (4) the backtest of §19 on public technology histories; (5) the coupled loops of §17 in a simulated world with a ground-truth causal model (hypothesis G); (6) the cross-domain transfer test (hypothesis H) — the direct measurement of whether an applied mathematician, rather than a chip-design heuristic engine, has been trained. Hypothesis H is the program's most fundamental claim; the others are instrumental to it.
 
 ## 23. Thesis
 
-The inner loop asks: *what is the right mathematical model of this engineered system?* The outer loop asks: *what is the right model — predictive and causal — of the technological world in which it must exist?* One scientific method runs at both levels: hypothesize structure, commit to a model, let reality attack it — simulators and silicon below, markets and roadmaps above — revise, and, where the causal model licenses it, act to change what reality permits. What is new here is not the ambition but the machinery: certificates that can be revoked, bounds that gate search, operators that make reformulation a move, prices that couple engineering to industry, and interventions distinguished from forecasts. The target is an AI that moves between equations and transistors, and between what is physically optimal and what can actually be built, at the level of rigor this document demands of its own claims: stated so that they can be refuted.
+The inner loop asks: *what is the right mathematical model of this engineered system?* The outer loop asks: *what is the right model — predictive and causal — of the technological world in which it must exist?* One scientific method runs at both levels: hypothesize structure, commit to a model, let reality attack it — simulators and silicon below, markets and roadmaps above — revise, and, where the causal model licenses it, act to change what reality permits. The central intellectual move is that the AI searches not only design space but model space and formulation space; the machinery is what makes that claim testable — certificates whose domains shrink before they die, bounds with epistemic status that steer compute between designing and understanding, operators that make reformulation a move and can themselves be induced, experiments chosen for information and not only for failure, prices that couple engineering to industry, and interventions distinguished from forecasts. The target is an AI that moves between equations and transistors, and between what is physically optimal and what can actually be built, at the level of rigor this document demands of its own claims: stated so that they can be refuted.
 
 ---
 
@@ -438,3 +485,5 @@ The inner loop asks: *what is the right mathematical model of this engineered sy
 [19] J. Rand et al. "Queued Up: Characteristics of power plants seeking transmission interconnection." Lawrence Berkeley National Laboratory, 2024 — typical request-to-operation durations of ~4–7 years.
 [20] J. F. Benders. "Partitioning procedures for solving mixed-variables programming problems." *Numerische Mathematik* 4, 1962; A. M. Geoffrion. "Generalized Benders decomposition." *JOTA* 10, 1972.
 [21] J. Pearl. *Causality: Models, Reasoning, and Inference.* 2nd ed., Cambridge University Press, 2009.
+[22] M. C. Kennedy and A. O'Hagan. "Bayesian calibration of computer models." *Journal of the Royal Statistical Society B* 63(3), 2001.
+[23] K. Chaloner and I. Verdinelli. "Bayesian experimental design: a review." *Statistical Science* 10(3), 1995.
